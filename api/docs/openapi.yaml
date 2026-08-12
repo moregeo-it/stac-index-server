@@ -16,8 +16,8 @@ info:
     
   version: 1.0.0
   contact:
-    name: SpatioCore
-    url: https://github.com/spatiocore
+    name: MoreGeo
+    url: https://moregeo.it
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
@@ -788,4 +788,4 @@ tags:
 
 externalDocs:
   description: STAC Atlas API Documentation
-  url: https://github.com/spatiocore/stac-atlas
+  url: https://github.com/moregeo-it/stac-index-server

@@ -19,7 +19,7 @@
     "geospatial",
     "collections"
   ],
-  "author": "STAC Atlas Team",
+  "author": "MoreGeo (https://moregeo.it)",
   "license": "Apache-2.0",
   "dependencies": {
     "cors": "^2.8.5",

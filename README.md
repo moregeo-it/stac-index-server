@@ -27,7 +27,8 @@ A centralized platform for managing, indexing, and providing STAC (SpatioTempora
 12. [Scope and Limitations](#scope-and-limitations)
 13. [Project Structure](#project-structure)
 14. [License](#license)
-15. [Team](#team)
+15. [Maintainers](#maintainers)
+16. [Credits](#credits)
 
 ---
 
@@ -511,13 +512,19 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE
 
 ---
 
-## Team
+## Maintainers
 
-STAC Atlas was developed as part of the Geosoftware II course at the University of Muenster (Winter Semester 2025/2026).
+STAC Atlas is maintained by **[MoreGeo](https://moregeo.it)** — [github.com/moregeo-it](https://github.com/moregeo-it).
 
-**Team Members:**
+---
+
+## Credits
+
+This project builds on **SpatioCore / STAC Atlas**, developed as part of the Geosoftware II course at the University of Muenster (Winter Semester 2025/2026).
+
+**Original Team:**
 - Database: Sönke Hoffmann
-- Crawler: Humam Hikmat (Team-Lead), Lenn Kruck, Jakob Wotka 
+- Crawler: Humam Hikmat (Team-Lead), Lenn Kruck, Jakob Wotka
 - API: Robin Gummels (Team- & Project-Lead), Vincent Kuehn, Jonas Klaer
 
 **Supervisors:**
