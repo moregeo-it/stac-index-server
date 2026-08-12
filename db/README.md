@@ -75,7 +75,7 @@ Optimized indexes for fast queries:
 
 ```bash
 cd ./db/
-cp example.env .env
+cp .env.example .env
 # Fill in passwords in .env file
 docker-compose up
 ```
@@ -101,7 +101,7 @@ docker-compose up
 | `STAC_API_PASSWORD` | Password for API user (read-only access) |
 | `STAC_CRAWLER_PASSWORD` | Password for crawler user (read-write access) |
 
-**Important**: Edit the `.env` file, not the `docker-compose.yml`. A template is provided in `example.env`.
+**Important**: Edit the `.env` file, not the `docker-compose.yml`. A template is provided in `.env.example`.
 
 ### User Roles
 

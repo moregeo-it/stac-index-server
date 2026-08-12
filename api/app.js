@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
-const YAML = require('yamljs');
 const path = require('path');
 const favicon = require('serve-favicon');
 
@@ -12,6 +11,7 @@ const { rateLimitMiddleware } = require('./middleware/rateLimit');
 const { corsMiddleware } = require('./middleware/cors');
 const { requestSizeLimitMiddleware, MAX_BODY_SIZE } = require('./middleware/requestSize');
 const { httpLogger } = require('./utils/logger');
+const { loadOpenApiSpec } = require('./utils/openapi');
 
 // Import routes
 const indexRouter = require('./routes/index');
@@ -47,20 +47,24 @@ app.use(express.urlencoded({ extended: false, limit: MAX_BODY_SIZE }));
 // CORS configuration - allow requests from frontend
 app.use(corsMiddleware);
 
-// OpenAPI spec endpoint (YAML file with correct content-type) - MUST be before Content-Type middleware
-app.get('/openapi.yaml', (req, res, next) => {
-  try {
-    const openapiPath = path.join(__dirname, 'docs', 'openapi.yaml');
-    res.setHeader('Content-Type', 'application/vnd.oai.openapi+json;version=3.0');
-    res.sendFile(openapiPath);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Swagger/OpenAPI documentation (if openapi.yaml exists) - MUST be before Content-Type middleware
+// OpenAPI spec + Swagger UI (if openapi.yaml exists) - MUST be before Content-Type middleware
+// The spec's "servers" entry is taken from API_BASE_URL, so the docs point at this deployment.
 try {
-  const swaggerDocument = YAML.load(path.join(__dirname, 'docs', 'openapi.yaml'));
+  const { document: swaggerDocument, yaml: swaggerYaml } = loadOpenApiSpec();
+
+  // YAML and JSON serialization of the same spec. The media types must match the
+  // actual payload — advertising "+json" for YAML makes clients run JSON.parse()
+  // on YAML text and fail.
+  app.get('/openapi.yaml', (req, res) => {
+    res.setHeader('Content-Type', 'application/vnd.oai.openapi;version=3.0');
+    res.send(swaggerYaml);
+  });
+
+  app.get('/openapi.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/vnd.oai.openapi+json;version=3.0');
+    res.json(swaggerDocument);
+  });
+
   app.use('/api-docs', swaggerUi.serve);
   app.get('/api-docs', swaggerUi.setup(swaggerDocument));
 } catch (err) {

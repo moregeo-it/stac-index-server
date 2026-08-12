@@ -1,4 +1,5 @@
 const express = require('express');
+const { getBaseUrl } = require('../utils/baseUrl');
 const router = express.Router();
 const db = require('../db/db_APIconnection'); 
 
@@ -38,7 +39,7 @@ const db = require('../db/db_APIconnection');
 router.get('/', async (req, res) => {
   const startedAt = Date.now();
   const timestamp = new Date().toISOString();
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const baseUrl = getBaseUrl(req);
 
   const result = {
     type: 'Health',

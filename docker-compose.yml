@@ -1,6 +1,6 @@
 # Orchestrates the full STAC-Atlas stack.
-# Single source for DB credentials: project-root .env (see example.env)
-#   cp example.env .env
+# Single source for DB credentials: project-root .env (see .env.example)
+#   cp .env.example .env
 #   docker compose up --build -d
 
 networks:
@@ -48,7 +48,11 @@ services:
       file: api/docker-compose.yml
       service: api
     networks: [stac-network]
-    # DB connection comes from root .env; api/.env is only API settings
+    # DB connection comes from root .env; api/.env is only API settings.
+    # Root .env is loaded after api/.env, so settings kept in one place
+    # (e.g. API_BASE_URL) win over the per-component file.
+    env_file:
+      - .env
     environment:
       DB_HOST: stac_db
       DB_PORT: "5432"
@@ -60,13 +64,4 @@ services:
       db:
         condition: service_healthy
       crawler:
-        condition: service_started
-
-  ui:
-    extends:
-      file: ui/docker-compose.yml
-      service: ui
-    networks: [stac-network]
-    depends_on:
-      api:
         condition: service_started

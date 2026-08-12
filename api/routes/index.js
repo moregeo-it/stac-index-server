@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { CONFORMANCE_URIS } = require('../config/conformanceURIS');
+const { getBaseUrl } = require('../utils/baseUrl');
 
 /**
  * GET /
@@ -9,7 +10,7 @@ const { CONFORMANCE_URIS } = require('../config/conformanceURIS');
  * Source: https://docs.ogc.org/cs/25-005/25-005.html
  */
 router.get('/', (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const baseUrl = getBaseUrl(req);
   
   res.json({
     type: 'Catalog',
@@ -63,9 +64,15 @@ router.get('/', (req, res) => {
       },
       {
         rel: 'service-desc', // This should point to the OpenAPI spec (machine-readable)
-        href: `${baseUrl}/openapi.yaml`,
+        href: `${baseUrl}/openapi.json`,
         type: 'application/vnd.oai.openapi+json;version=3.0',
         title: 'OpenAPI specification'
+      },
+      {
+        rel: 'service-desc',
+        href: `${baseUrl}/openapi.yaml`,
+        type: 'application/vnd.oai.openapi;version=3.0',
+        title: 'OpenAPI specification (YAML)'
       },
     ]
   });

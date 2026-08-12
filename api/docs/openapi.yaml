@@ -22,11 +22,11 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
 
+# The deployment's own server entry is prepended at startup from the
+# API_BASE_URL environment variable (see api/utils/openapi.js).
 servers:
   - url: http://localhost:3000
     description: Local development server
-  - url: https://api.stacatlas.org
-    description: Production server
 
 paths:
   /:

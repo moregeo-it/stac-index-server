@@ -18,7 +18,6 @@ A centralized platform for managing, indexing, and providing STAC (SpatioTempora
    - [Database](#database)
    - [Crawler](#crawler)
    - [API](#api)
-   - [UI](#ui)
 6. [Technology Stack](#technology-stack)
 7. [Ports and Networking](#ports-and-networking)
 8. [Environment Configuration](#environment-configuration)
@@ -38,20 +37,21 @@ In the current geodata landscape, numerous decentralized STAC catalogs and APIs 
 
 STAC Atlas addresses this problem by serving as a centralized access point that aggregates metadata from various sources and makes it searchable. The platform enables users to search, filter, and compare collections across providers without having to manually browse each individual STAC catalog.
 
-By implementing standard-compliant interfaces (STAC API), both programmatic access by developers and interactive use through a web interface are enabled. This significantly increases efficiency when working with geodata and promotes the reusability of data resources.
+By implementing standard-compliant interfaces (STAC API), programmatic access by developers as well as integration into existing STAC clients and web frontends is enabled. This significantly increases efficiency when working with geodata and promotes the reusability of data resources.
 
 ---
 
 ## System Overview
 
-STAC Atlas consists of four main components that work together seamlessly:
+This repository contains the server side of STAC Atlas — three components that work together seamlessly:
 
 | Component | Description |
 |-----------|-------------|
 | **Database** | PostgreSQL with PostGIS for persistent storage and efficient spatial queries |
 | **Crawler** | Automatically discovers and indexes STAC Collections from distributed sources |
 | **API** | Provides STAC-compliant programmatic access to indexed collections |
-| **UI** | User-friendly web interface for visual search and exploration |
+
+Any STAC-compliant client can consume the API; the web frontend is maintained in its own repository.
 
 ### Architecture
 
@@ -63,7 +63,7 @@ STAC Atlas consists of four main components that work together seamlessly:
             ┌────────────────────────────────┘
             │                                
 ┌───────────│─────────────────────────────────────────────────────────────┐
-│           │                STAC Atlas System                            │
+│           │            STAC Atlas Server                                │
 │           │                                                             │
 │   ┌───────│─────┐         ┌─────────────┐         ┌─────────────┐       │
 │   │             │  write  │             │  read   │             │       │
@@ -72,16 +72,14 @@ STAC Atlas consists of four main components that work together seamlessly:
 │   │             │         │  + PostGIS) │         │             │       │
 │   └─────────────┘         └─────────────┘         └──────┬──────┘       │
 │                                                          │              │
-│                                                          │ HTTP/JSON    │
-│                                                          │              │
-│                                                   ┌──────▼──────┐       │
-│                                                   │             │       │
-│                                                   │     UI      │       │
-│                                                   │   (Vue.js)  │       │
-│                                                   │             │       │
-│                                                   └─────────────┘       │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────│──────────────┘
+                                                           │ HTTP/JSON
+                                                           │
+                                                    ┌──────▼──────┐
+                                                    │   Clients   │
+                                                    │ (web front- │
+                                                    │ ends, tools)│
+                                                    └─────────────┘
 ```
 
 ### Component Interaction
@@ -92,9 +90,9 @@ The components interact in a well-defined data flow:
 
 2. **API to Database**: The API reads from the database using parameterized SQL queries. It translates CQL2 filter expressions into PostgreSQL WHERE clauses and leverages PostGIS for spatial queries and TSVector for full-text search.
 
-3. **UI to API**: The frontend communicates exclusively with the API via HTTP/JSON. It uses the STAC-compliant endpoints to search, filter, and retrieve collection metadata. The UI never accesses the database directly.
+3. **Clients to API**: External clients communicate with the API via HTTP/JSON. They use the STAC-compliant endpoints to search, filter, and retrieve collection metadata. No client accesses the database directly.
 
-4. **Crawler Independence**: The crawler operates independently from the API and UI. It can run as a one-time job or as a scheduled service, updating the database without affecting API availability.
+4. **Crawler Independence**: The crawler operates independently from the API. It can run as a one-time job or as a scheduled service, updating the database without affecting API availability.
 
 ---
 
@@ -123,14 +121,6 @@ The components interact in a well-defined data flow:
 - **Sorting**: Configurable sort order by various fields
 - **Health Monitoring**: Kubernetes-ready health check endpoint
 
-### User Interface
-
-- **Interactive Map**: MapLibre GL-based visualization of collection spatial extents
-- **Advanced Filters**: UI controls for all search parameters including bounding box drawing
-- **Internationalization**: Support for English and German languages
-- **Responsive Design**: Works across desktop and mobile devices
-- **Collection Details**: Detailed view of collection metadata with links to original sources
-
 ---
 
 ## Quick Start
@@ -139,7 +129,7 @@ The components interact in a well-defined data flow:
 
 - Docker and Docker Compose installed
 - At least 4 GB RAM recommended
-- Ports 3000, 5432, and 8080 available
+- Ports 3000 and 5432 available
 
 ### Full System Deployment
 
@@ -151,7 +141,7 @@ git clone https://github.com/your-org/stac-atlas.git
 cd stac-atlas
 
 # Create shared credentials once (injected into db, api, crawler)
-cp example.env .env
+cp .env.example .env
 # Edit .env — set passwords here only
 
 # Optional component settings (no DB passwords needed for full stack)
@@ -166,11 +156,10 @@ docker compose up --build -d
 This starts:
 - **Database** on port 5432
 - **API** on port 3000
-- **UI** on port 8080
 
-**Note** that if the URI of the API changes, you need to address this in `./ui/.env`. 
+**Note** that the public URL the API advertises in its response links comes from `API_BASE_URL`. Set it in the root `.env` whenever the API is not reached directly on `localhost:3000`, e.g. behind a reverse proxy.
 
-This process will create first of all a new Database under your given Port. If this step is done, the Crawler will be started and will automatically beginn to fill you new Database with crawled Collections. The API and the UI will also be started in this step. Be aware that it can take multiple minutes until the crawler inserts the first Collections into the Databse.
+This process will create first of all a new Database under your given Port. If this step is done, the Crawler will be started and will automatically beginn to fill you new Database with crawled Collections. The API will also be started in this step. Be aware that it can take multiple minutes until the crawler inserts the first Collections into the Databse.
 
 ### Individual Component Deployment
 
@@ -180,7 +169,7 @@ Each component can also be deployed independently. This is useful for developmen
 
 ```bash
 cd db
-cp example.env .env
+cp .env.example .env
 # Edit .env with your passwords
 docker-compose up -d
 ```
@@ -217,16 +206,7 @@ npm install
 npm start
 ```
 
-#### UI Only
-
-```bash
-cd ui
-cp .env.example .env
-# Edit .env with API URL
-docker compose up --build
-```
-
-For a more detailed component-specific instructions, see the README files in each component directory. [db/README.md](./db/README.md), [crawler/README.md](./crawler/README.md), [api/README.md](./api/README.md), [ui/README.md](./ui/README.md)
+For a more detailed component-specific instructions, see the README files in each component directory. [db/README.md](./db/README.md), [crawler/README.md](./crawler/README.md), [api/README.md](./api/README.md)
 
 ---
 
@@ -314,28 +294,6 @@ The API provides STAC-compliant access to indexed collections. Built with Expres
 
 For complete API documentation including CQL2 examples, see [api/README.md](api/README.md).
 
-### UI
-
-The frontend is a Vue 3 application with TypeScript that provides a user-friendly interface for searching and exploring STAC collections.
-
-**Key Features:**
-- Interactive map with MapLibre GL for spatial visualization
-- Bounding box drawing for spatial filters
-- Date range pickers for temporal filters
-- Dropdown selectors for providers and licenses (populated from API)
-- Full-text search with debounced queries
-- Pagination with configurable page sizes
-- Collection detail view with complete metadata
-- Language switching (English/German)
-
-**Technology Choices:**
-- Vue 3 Composition API for better TypeScript integration
-- Pinia for state management
-- Vite for fast development builds
-- Custom i18n implementation for minimal bundle size
-
-For complete UI documentation including component architecture, see [ui/README.md](ui/README.md).
-
 ---
 
 ## Technology Stack
@@ -351,10 +309,6 @@ For complete UI documentation including component architecture, see [ui/README.m
 | CQL2 Parser | cql2-wasm | - |
 | Crawler Runtime | Node.js | 22+ |
 | Crawler Framework | Crawlee | 3.x |
-| Frontend Framework | Vue.js | 3.5 |
-| Frontend Build | Vite | 7.x |
-| Map Library | MapLibre GL | 5.x |
-| State Management | Pinia | 3.x |
 
 ### Development Tools
 
@@ -362,7 +316,6 @@ For complete UI documentation including component architecture, see [ui/README.m
 |---------|------------|
 | Testing | Jest, Supertest |
 | Linting | ESLint |
-| Type Checking | TypeScript |
 | API Documentation | Swagger UI, OpenAPI 3.0 |
 | Containerization | Docker, Docker Compose |
 
@@ -372,7 +325,6 @@ For complete UI documentation including component architecture, see [ui/README.m
 
 | Service | Port | Description |
 |---------|------|-------------|
-| UI | 8080 | Web interface (Nginx serving static files) |
 | API | 3000 | STAC API endpoints |
 | Database | 5432 | PostgreSQL connection |
 
@@ -384,7 +336,7 @@ When running with Docker Compose, all services communicate over the `stac_net` i
 
 ### Full stack (recommended)
 
-Create **one** root `.env` from `example.env`. Passwords and DB name/user are injected into `db`, `api` and `crawler` by the root `docker-compose.yml` — you do not repeat them elsewhere.
+Create **one** root `.env` from `.env.example`. Passwords and DB name/user are injected into `db`, `api` and `crawler` by the root `docker-compose.yml` — you do not repeat them elsewhere.
 
 ```env
 POSTGRES_DB=example
@@ -393,25 +345,19 @@ POSTGRES_PASSWORD=example
 DB_PORT=5432
 STAC_API_PASSWORD=example
 STAC_CRAWLER_PASSWORD=example
+API_BASE_URL=http://localhost:3000
 ```
 
 Optional component files (no shared secrets):
 
 - `crawler/.env` — crawl settings only (`CRAWL_*`, `MAX_*`, …)
 - `api/.env` — API settings only (CORS, pool, logging, …)
-- `ui/.env` — `VITE_API_BASE_URL`
 
 ### Standalone components
 
-When running a component alone, use that component’s example file (including DB connection settings). For the database alone: `db/example.env`.
+When running a component alone, use that component’s example file (including DB connection settings). For the database alone: `db/.env.example`.
 
-### UI (.env)
-
-```env
-VITE_API_BASE_URL=http://localhost:3000
-```
-
-For in depth configuration options, have a look into the README files in each component directory. [db/README.md](./db/README.md), [crawler/README.md](./crawler/README.md), [api/README.md](./api/README.md), [ui/README.md](./ui/README.md)
+For in depth configuration options, have a look into the README files in each component directory. [db/README.md](./db/README.md), [crawler/README.md](./crawler/README.md), [api/README.md](./api/README.md)
 
 ---
 
@@ -432,13 +378,6 @@ npm run lint                # Code linting
 cd crawler
 npm test                    # Run all tests
 npm run test:watch          # Watch mode
-```
-
-### UI Tests
-
-```bash
-cd ui
-npm run build               # Type checking with vue-tsc
 ```
 
 ### STAC API Validation
@@ -489,7 +428,7 @@ STAC Atlas is designed for several user groups:
 - Integrate searches into analysis pipelines via API
 
 ### GIS Professionals
-- Visual map-based search for collections in project areas
+- Spatial search for collections in project areas via bbox and CQL2 geometry filters
 - Filter by license for commercial use cases
 - Evaluate temporal availability across providers
 - Quick identification of relevant data sources
@@ -513,7 +452,6 @@ STAC Atlas is designed for several user groups:
 
 - Indexes and searches STAC Collections from distributed sources
 - Provides STAC-compliant API access to aggregated metadata
-- Offers interactive web interface for exploration
 - Maintains periodic updates through scheduled crawling
 
 ### What STAC Atlas Does NOT Do
@@ -559,18 +497,7 @@ stac-atlas/
 │   ├── migrations/         # Schema migrations
 │   ├── docker-compose.yml
 │   └── README.md
-├── ui/                     # Vue.js frontend
-│   ├── src/
-│   │   ├── components/     # Reusable components
-│   │   ├── views/          # Page components
-│   │   ├── stores/         # Pinia state stores
-│   │   ├── composables/    # Composition functions
-│   │   ├── services/       # API client
-│   │   └── i18n/           # Translations
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   └── README.md
-├── docker-compose.yml      # Full system orchestration
+├── docker-compose.yml      # Full system orchestration (db, crawler, api)
 ├── bid.md                  # Project requirements (German)
 ├── LICENSE
 └── README.md               # This file
@@ -592,7 +519,6 @@ STAC Atlas was developed as part of the Geosoftware II course at the University 
 - Database: Sönke Hoffmann
 - Crawler: Humam Hikmat (Team-Lead), Lenn Kruck, Jakob Wotka 
 - API: Robin Gummels (Team- & Project-Lead), Vincent Kuehn, Jonas Klaer
-- UI: Justin Krumböhmer (Team-Lead), Simon Imfeld
 
 **Supervisors:**
 - Dr. Christian Knoth
