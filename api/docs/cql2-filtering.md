@@ -1,10 +1,10 @@
 # CQL2 Filtering
 
-This document describes the Common Query Language 2 (CQL2) filtering capabilities supported by the STAC Atlas Collection Search API (`GET /collections`).
+This document describes the Common Query Language 2 (CQL2) filtering capabilities supported by the STAC Index Collection Search API (`GET /collections`).
 
 ## Overview
 
-CQL2 is an OGC standard for expressing filter expressions. The STAC Atlas API supports both CQL2-Text (human-readable) and CQL2-JSON (machine-readable) encodings for filtering collections based on their properties.
+CQL2 is an OGC standard for expressing filter expressions. The STAC Index API supports both CQL2-Text (human-readable) and CQL2-JSON (machine-readable) encodings for filtering collections based on their properties.
 
 ## Query Parameters
 

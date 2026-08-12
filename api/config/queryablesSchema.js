@@ -1,6 +1,6 @@
 // config/queryablesSchema.js
 /**
- * Queryables Schema for STAC Atlas (Collections)
+ * Queryables Schema for STAC Index (Collections)
  *
  * This schema documents which properties can be used in CQL2 filter expressions.
  * It is based on:
@@ -66,7 +66,7 @@ function buildCollectionsQueryablesSchema(baseUrl, enums = {}) {
     $schema: 'https://json-schema.org/draft/2019-09/schema',
     $id: schemaId,
     type: 'object',
-    title: 'STAC Atlas Collections Queryables',
+    title: 'STAC Index Collections Queryables',
     description:
       'Queryable properties for STAC Collection Search via CQL2 filters. These properties can be referenced in filter expressions passed via the ?filter= parameter. Enum values are dynamically loaded from the database.',
     additionalProperties: true,

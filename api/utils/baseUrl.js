@@ -8,7 +8,7 @@
  * fallback for local/standalone runs.
  *
  * @param {import('express').Request} req - Incoming request
- * @returns {string} Base URL without trailing slash, e.g. "https://atlas.stacindex.org:3000"
+ * @returns {string} Base URL without trailing slash, e.g. "https://api.stacindex.org:3000"
  */
 function getBaseUrl(req) {
   const configured = (process.env.API_BASE_URL || '').trim();

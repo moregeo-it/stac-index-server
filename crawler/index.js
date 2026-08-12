@@ -1,5 +1,5 @@
 /**
- * @fileoverview STAC Index API crawler that fetches and processes catalog data
+ * @fileoverview Legacy STAC Index API (stacindex.org) crawler that fetches and processes catalog data
  * @module crawler
  */
 
@@ -13,7 +13,7 @@ import db from './utils/db.js';
 import globalStats from './utils/globalStats.js';
 
 /**
- * URL of the STAC Index API endpoint
+ * URL of the legacy STAC Index API endpoint
  * @type {string}
  */
 const targetUrl = 'https://www.stacindex.org/api/catalogs';
@@ -55,7 +55,7 @@ export function resetShutdownFlag() {
 }
 
 /**
- * Fetches catalog data from the STAC Index API and processes it
+ * Fetches catalog data from the legacy STAC Index API and processes it
  * @async
  * @function crawler
  * @returns {Promise<Object>} Returns statistics about the crawl including success status and runtime
@@ -130,7 +130,7 @@ export const crawler = async () => {
         const response = await axios.get(targetUrl);
         const catalogs = processCatalogs(response.data);
         
-        // Save catalogs from STAC Index to crawllog_catalog table
+        // Save catalogs from the legacy STAC Index to crawllog_catalog table
         // This creates the URL queue for re-crawling and stores the slug for stac_id generation
         console.log('\n=== Saving catalogs to crawllog_catalog ===');
         let catalogsSaved = 0;
@@ -155,7 +155,7 @@ export const crawler = async () => {
         console.log(`\nCrawllog Catalogs: ${catalogsSaved} saved, ${catalogsFailed} failed\n`);
         
         // Now fetch the URL queue from crawllog_catalog for re-crawling
-        // This allows us to re-crawl existing catalogs without fetching from STAC Index again
+        // This allows us to re-crawl existing catalogs without fetching from the legacy STAC Index again
         console.log('\n=== Loading catalogs from crawllog_catalog for crawling ===');
         const crawllogCatalogs = await db.getCrawllogCatalogs({ isApi: false });
         const crawllogApis = await db.getCrawllogCatalogs({ isApi: true });

@@ -1,4 +1,4 @@
-# STAC Atlas
+# STAC Index
 
 A centralized platform for managing, indexing, and providing STAC (SpatioTemporal Asset Catalog) Collection metadata from distributed catalogs and APIs.
 
@@ -36,7 +36,7 @@ A centralized platform for managing, indexing, and providing STAC (SpatioTempora
 
 In the current geodata landscape, numerous decentralized STAC catalogs and APIs from various data providers exist, making it difficult to discover and access relevant geodata collections. Researchers, GIS professionals, and application developers often need to manually search through individual STAC catalogs to find the datasets they need.
 
-STAC Atlas addresses this problem by serving as a centralized access point that aggregates metadata from various sources and makes it searchable. The platform enables users to search, filter, and compare collections across providers without having to manually browse each individual STAC catalog.
+STAC Index addresses this problem by serving as a centralized access point that aggregates metadata from various sources and makes it searchable. The platform enables users to search, filter, and compare collections across providers without having to manually browse each individual STAC catalog.
 
 By implementing standard-compliant interfaces (STAC API), programmatic access by developers as well as integration into existing STAC clients and web frontends is enabled. This significantly increases efficiency when working with geodata and promotes the reusability of data resources.
 
@@ -44,7 +44,7 @@ By implementing standard-compliant interfaces (STAC API), programmatic access by
 
 ## System Overview
 
-This repository contains the server side of STAC Atlas — three components that work together seamlessly:
+This repository contains the server side of STAC Index — three components that work together seamlessly:
 
 | Component | Description |
 |-----------|-------------|
@@ -58,13 +58,13 @@ Any STAC-compliant client can consume the API; the web frontend is maintained in
 
 ```
                                     ┌─────────────────┐
-                                    │   STAC Index    │
-                                    │   (External)    │
+                                    │  stacindex.org  │
+                                    │ (legacy, extern)│
              Crawls Data            └────────┬────────┘
             ┌────────────────────────────────┘
             │                                
 ┌───────────│─────────────────────────────────────────────────────────────┐
-│           │            STAC Atlas Server                                │
+│           │            STAC Index Server                                │
 │           │                                                             │
 │   ┌───────│─────┐         ┌─────────────┐         ┌─────────────┐       │
 │   │             │  write  │             │  read   │             │       │
@@ -87,7 +87,7 @@ Any STAC-compliant client can consume the API; the web frontend is maintained in
 
 The components interact in a well-defined data flow:
 
-1. **Crawler to Database**: The crawler fetches STAC catalogs and APIs from the STAC Index, validates and normalizes the data, then writes collections to the PostgreSQL database. It tracks crawl progress to enable pause/resume functionality and periodic re-crawling.
+1. **Crawler to Database**: The crawler fetches STAC catalogs and APIs from the legacy STAC Index (stacindex.org), validates and normalizes the data, then writes collections to the PostgreSQL database. It tracks crawl progress to enable pause/resume functionality and periodic re-crawling.
 
 2. **API to Database**: The API reads from the database using parameterized SQL queries. It translates CQL2 filter expressions into PostgreSQL WHERE clauses and leverages PostGIS for spatial queries and TSVector for full-text search.
 
@@ -101,7 +101,7 @@ The components interact in a well-defined data flow:
 
 ### Core Capabilities
 
-- **Automated Indexing**: Crawls and indexes STAC Collections from static catalogs and STAC APIs listed in the STAC Index
+- **Automated Indexing**: Crawls and indexes STAC Collections from static catalogs and STAC APIs listed in the legacy STAC Index (stacindex.org)
 - **Recursive Navigation**: Traverses nested catalog structures with configurable depth limits
 - **Incremental Updates**: Supports pause/resume and periodic re-crawling without full re-indexing
 - **STAC Validation**: Validates collections against official STAC schemas before storage
@@ -134,12 +134,12 @@ The components interact in a well-defined data flow:
 
 ### Full System Deployment
 
-The entire STAC Atlas system can be started with a single command:
+The entire STAC Index system can be started with a single command:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/stac-atlas.git
-cd stac-atlas
+git clone https://github.com/moregeo-it/stac-index-server.git
+cd stac-index-server
 
 # Create shared credentials once (injected into db, api, crawler)
 cp .env.example .env
@@ -234,7 +234,7 @@ For complete database documentation including ER diagrams and initialization scr
 
 ### Crawler
 
-The crawler is a Node.js application that discovers and indexes STAC Collections from the STAC Index. It supports both static catalogs and STAC APIs, with intelligent rate limiting and domain-based parallel processing.
+The crawler is a Node.js application that discovers and indexes STAC Collections from the legacy STAC Index (stacindex.org). It supports both static catalogs and STAC APIs, with intelligent rate limiting and domain-based parallel processing.
 
 **Key Features:**
 - Single-run and scheduled modes
@@ -394,7 +394,7 @@ python -m stac_api_validator --root-url http://localhost:3000 --conformance core
 
 ## STAC Conformance
 
-STAC Atlas implements the following conformance classes:
+STAC Index implements the following conformance classes:
 
 - "https://api.stacspec.org/v1.0.0/core"
 - "https://api.stacspec.org/v1.0.0/collections"
@@ -420,7 +420,7 @@ The full list of conformance URIs is also available at `GET /conformance`.
 
 ## Target Audience
 
-STAC Atlas is designed for several user groups:
+STAC Index is designed for several user groups:
 
 ### Data Scientists and Researchers
 - Search for satellite imagery by region and time period
@@ -449,13 +449,13 @@ STAC Atlas is designed for several user groups:
 
 ## Scope and Limitations
 
-### What STAC Atlas Does
+### What STAC Index Does
 
 - Indexes and searches STAC Collections from distributed sources
 - Provides STAC-compliant API access to aggregated metadata
 - Maintains periodic updates through scheduled crawling
 
-### What STAC Atlas Does NOT Do
+### What STAC Index Does NOT Do
 
 - Store individual STAC Items (only Collections)
 - Replace original STAC Catalogs (serves as aggregation layer)
@@ -471,7 +471,7 @@ STAC Atlas is designed for several user groups:
 ## Project Structure
 
 ```
-stac-atlas/
+stac-index/
 ├── api/                    # STAC API server
 │   ├── bin/                # Server entry point
 │   ├── config/             # Configuration files
@@ -514,7 +514,7 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE
 
 ## Maintainers
 
-STAC Atlas is maintained by **[MoreGeo](https://moregeo.it)** — [github.com/moregeo-it](https://github.com/moregeo-it).
+STAC Index is maintained by **[MoreGeo](https://moregeo.it)** — [github.com/moregeo-it](https://github.com/moregeo-it).
 
 ---
 
@@ -538,4 +538,4 @@ This project builds on **SpatioCore / STAC Atlas**, developed as part of the Geo
 - [STAC Specification](https://stacspec.org/)
 - [STAC API Specification](https://api.stacspec.org/)
 - [OGC CQL2 Standard](https://docs.ogc.org/is/21-065r2/21-065r2.html)
-- [STAC Index](https://stacindex.org/)
+- [Legacy STAC Index](https://stacindex.org/) — upstream catalog source

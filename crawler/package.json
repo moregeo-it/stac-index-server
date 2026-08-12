@@ -1,5 +1,5 @@
 {
-  "name": "stac-atlas-crawler",
+  "name": "stac-index-crawler",
   "version": "1.0.0",
   "description": "STAC Index crawler",
   "main": "index.js",

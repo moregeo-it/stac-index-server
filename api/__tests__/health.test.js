@@ -15,7 +15,7 @@ describe('Health Check Endpoint', () => {
   let app;
 
   beforeEach(() => {
-    process.env.SERVICE_NAME = 'STAC Atlas API';
+    process.env.SERVICE_NAME = 'STAC Index API';
     db.ping.mockResolvedValue({ ok: true });
 
     app = express();
@@ -40,8 +40,8 @@ describe('Health Check Endpoint', () => {
   test('GET /health response contains STAC-compliant structure', async () => {
     const response = await request(app).get('/health');
     expect(response.body.type).toBe('Health');
-    expect(response.body.id).toBe('stac-atlas-health');
-    expect(response.body.title).toBe('STAC Atlas API Health Check');
+    expect(response.body.id).toBe('stac-index-health');
+    expect(response.body.title).toBe('STAC Index API Health Check');
     expect(response.body.description).toBeDefined();
     expect(typeof response.body.description).toBe('string');
   });

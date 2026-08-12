@@ -67,7 +67,7 @@ const logger = winston.createLogger({
   level: logLevel,
   format: structuredFormat,
   defaultMeta: {
-    service: 'stac-atlas-api',
+    service: 'stac-index-api',
     environment: process.env.NODE_ENV || 'development'
   },
   transports: [

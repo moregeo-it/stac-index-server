@@ -1,6 +1,6 @@
 # STAC Crawler
 
-A Node.js crawler for STAC Index API that fetches and processes catalog and collection data with configurable options. Includes an automated scheduler for periodic crawling.
+A Node.js crawler for the legacy STAC Index API (stacindex.org) that fetches and processes catalog and collection data with configurable options. Includes an automated scheduler for periodic crawling.
 
 ## Table of Contents
 
@@ -402,7 +402,7 @@ The crawler uses carefully selected libraries for specific functionality:
   - Simple interface for one-off requests (e.g., fetching catalog list)
   - Wide adoption and reliability
   - Promise-based async/await support
-- **Used for**: Initial STAC Index API calls before crawling starts
+- **Used for**: Initial legacy STAC Index API calls before crawling starts
 
 #### **stac-js** (v0.1.9)
 - **Purpose**: STAC object manipulation and metadata extraction
@@ -563,7 +563,7 @@ The crawler operates in two modes: **static catalog crawling** and **STAC API cr
 
 #### Static Catalog Crawling
 
-1. **Initialization**: Fetch the list of static catalogs from STAC Index API (`https://www.stacindex.org/api/catalogs`)
+1. **Initialization**: Fetch the list of static catalogs from the legacy STAC Index API (`https://www.stacindex.org/api/catalogs`)
 2. **Domain Grouping**: Group catalogs by domain to enable parallel processing while respecting rate limits
 3. **Parallel Execution**: Process multiple domains simultaneously with configurable concurrency
 4. **Recursive Traversal**: For each catalog:
@@ -580,7 +580,7 @@ The crawler operates in two modes: **static catalog crawling** and **STAC API cr
 
 #### STAC API Crawling
 
-1. **Initialization**: Fetch the list of STAC APIs from STAC Index API
+1. **Initialization**: Fetch the list of STAC APIs from the legacy STAC Index API
 2. **Domain Grouping**: Same as static catalog crawling
 3. **API Discovery**: For each API:
    - Fetch the API root endpoint

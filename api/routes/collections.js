@@ -105,7 +105,7 @@ function toStacCollection(row, baseHost) {
 
   // Add Links incase a baseHost is provided
   if (baseHost !== undefined) {
-    // Base links: our own STAC Atlas links
+    // Base links: our own STAC Index links
     const baseLinks = [
       {
         rel: "self",
@@ -117,13 +117,13 @@ function toStacCollection(row, baseHost) {
         rel: "root",
         href: `${baseHost}`,
         type: 'application/json',
-        title: 'STAC Atlas Landing Page'
+        title: 'STAC Index Landing Page'
       },
       {
         rel: "parent",
         href: `${baseHost}`,
         type: 'application/json',
-        title: 'STAC Atlas Landing Page'
+        title: 'STAC Index Landing Page'
       }
     ];
     

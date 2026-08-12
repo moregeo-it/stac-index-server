@@ -4,7 +4,7 @@ const router = express.Router();
 const db = require('../db/db_APIconnection'); 
 
 /**
- * Health check endpoint for the STAC Atlas API
+ * Health check endpoint for the STAC Index API
  * 
  * Provides liveness and readiness probes for Kubernetes-style health checks.
  * Returns STAC-compliant JSON with links to related endpoints.
@@ -43,9 +43,9 @@ router.get('/', async (req, res) => {
 
   const result = {
     type: 'Health',
-    id: 'stac-atlas-health',
-    title: 'STAC Atlas API Health Check',
-    description: 'Health status and readiness information for the STAC Atlas API',
+    id: 'stac-index-health',
+    title: 'STAC Index API Health Check',
+    description: 'Health status and readiness information for the STAC Index API',
     status: 'ok',
     ready: true, // readiness flag
     uptimeSec: Math.floor(process.uptime()),
@@ -64,13 +64,13 @@ router.get('/', async (req, res) => {
         rel: 'root',
         href: baseUrl,
         type: 'application/json',
-        title: 'STAC Atlas root catalog'
+        title: 'STAC Index root catalog'
       },
       {
         rel: 'parent',
         href: baseUrl,
         type: 'application/json',
-        title: 'STAC Atlas root catalog'
+        title: 'STAC Index root catalog'
       },
     ]
   };

@@ -165,7 +165,7 @@ describe('Structured Logging Tests', () => {
       const lastLogLine = logContent.trim().split('\n').pop();
       const logEntry = JSON.parse(lastLogLine);
 
-      expect(logEntry.service).toBe('stac-atlas-api');
+      expect(logEntry.service).toBe('stac-index-api');
     });
   });
 

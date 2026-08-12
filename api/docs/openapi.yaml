@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: STAC Atlas API
+  title: STAC Index API
   description: |
     A centralized platform for managing, indexing, and providing STAC Collection metadata from distributed catalogs and APIs.
     
@@ -272,8 +272,8 @@ paths:
         
         The collection includes:
         - Original metadata from source catalog
-        - STAC Atlas identifiers (`stac_id`, `source_id`, `source_url`)
-        - Processed links with both Atlas and source references
+        - STAC Index identifiers (`stac_id`, `source_id`, `source_url`)
+        - Processed links with both STAC Index and source references
         - Full STAC-compliant structure
       operationId: getCollection
       tags:
@@ -282,7 +282,7 @@ paths:
         - name: collectionId
           in: path
           description: |
-            Collection identifier (STAC Atlas ID).
+            Collection identifier (STAC Index ID).
             Can be numeric ID or string identifier.
           required: true
           schema:
@@ -356,7 +356,7 @@ paths:
     get:
       summary: Health Check
       description: |
-        Returns health status and readiness information for the STAC Atlas API.
+        Returns health status and readiness information for the STAC Index API.
         
         **Checks:**
         - **Liveness:** Returns 200 if the service is running
@@ -381,9 +381,9 @@ paths:
                 $ref: '#/components/schemas/Health'
               example:
                 type: "Health"
-                id: "stac-atlas-health"
-                title: "STAC Atlas API Health Check"
-                description: "Health status and readiness information for the STAC Atlas API"
+                id: "stac-index-health"
+                title: "STAC Index API Health Check"
+                description: "Health status and readiness information for the STAC Index API"
                 status: "ok"
                 ready: true
                 uptimeSec: 3600
@@ -402,7 +402,7 @@ paths:
                   - rel: "root"
                     href: "http://localhost:3000"
                     type: "application/json"
-                    title: "STAC Atlas root catalog"
+                    title: "STAC Index root catalog"
         '503':
           description: Service is degraded (database unavailable)
           content:
@@ -411,9 +411,9 @@ paths:
                 $ref: '#/components/schemas/Health'
               example:
                 type: "Health"
-                id: "stac-atlas-health"
-                title: "STAC Atlas API Health Check"
-                description: "Health status and readiness information for the STAC Atlas API"
+                id: "stac-index-health"
+                title: "STAC Index API Health Check"
+                description: "Health status and readiness information for the STAC Index API"
                 status: "degraded"
                 ready: false
                 uptimeSec: 3600
@@ -519,10 +519,10 @@ components:
           description: STAC extensions used by this collection
         id:
           type: string
-          description: STAC Atlas collection identifier
+          description: STAC Index collection identifier
         stac_id:
           type: string
-          description: Same as id (STAC Atlas identifier)
+          description: Same as id (STAC Index identifier)
         source_id:
           type: string
           description: Original collection ID from source catalog
@@ -594,9 +594,9 @@ components:
             $ref: '#/components/schemas/Link'
           description: |
             Links include:
-            - `self`: This collection in STAC Atlas
-            - `root`: STAC Atlas landing page
-            - `parent`: STAC Atlas landing page
+            - `self`: This collection in STAC Index
+            - `root`: STAC Index landing page
+            - `parent`: STAC Index landing page
             - `item`/`items`: Original source item references (if available)
             - `source_*`: Other links from original source (e.g., `source_license`, `source_root`)
         summaries:
@@ -655,10 +655,10 @@ components:
             - Health
         id:
           type: string
-          example: "stac-atlas-health"
+          example: "stac-index-health"
         title:
           type: string
-          example: "STAC Atlas API Health Check"
+          example: "STAC Index API Health Check"
         description:
           type: string
         status:
@@ -787,5 +787,5 @@ tags:
     description: Health check and monitoring endpoints
 
 externalDocs:
-  description: STAC Atlas API Documentation
+  description: STAC Index API Documentation
   url: https://github.com/moregeo-it/stac-index-server
