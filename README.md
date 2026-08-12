@@ -160,6 +160,23 @@ This starts:
 
 **Note** that the public URL the API advertises in its response links comes from `API_BASE_URL`. Set it in the root `.env` whenever the API is not reached directly on `localhost:3000`, e.g. behind a reverse proxy.
 
+`API_BASE_URL` may include a path prefix — the production deployment is served at `https://stacindex.org/api`:
+
+```env
+API_BASE_URL=https://stacindex.org/api
+```
+
+All response links and the OpenAPI `servers` entry are then prefixed accordingly. The application itself always serves its routes at the root (`/collections`, `/health`, …), so the reverse proxy has to strip the prefix before forwarding:
+
+```nginx
+location /api/ {
+    proxy_pass http://api:3000/;   # trailing slash strips the /api prefix
+    proxy_set_header Host              $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host  $host;
+}
+```
+
 This process will create first of all a new Database under your given Port. If this step is done, the Crawler will be started and will automatically beginn to fill you new Database with crawled Collections. The API will also be started in this step. Be aware that it can take multiple minutes until the crawler inserts the first Collections into the Databse.
 
 ### Individual Component Deployment
