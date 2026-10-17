@@ -158,15 +158,15 @@ This starts:
 - **Database** on port 5432
 - **API** on port 3000
 
-**Note** that the public URL the API advertises in its response links comes from `API_BASE_URL`. Set it in the root `.env` whenever the API is not reached directly on `localhost:3000`, e.g. behind a reverse proxy.
+**Note** that the links in the API responses (and the OpenAPI `servers` entry) follow the URL the request came in through: requested via `http://localhost:3000`, the links point at `http://localhost:3000`; requested via `https://stacindex.org/api`, they point there. The URL is read from the `Host` header and the proxy headers `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-Prefix`.
 
-`API_BASE_URL` may include a path prefix — the production deployment is served at `https://stacindex.org/api`:
+`API_BASE_URL` in the root `.env` adds the path prefix for requests coming in via its host — the production deployment is served at `https://stacindex.org/api`:
 
 ```env
 API_BASE_URL=https://stacindex.org/api
 ```
 
-All response links and the OpenAPI `servers` entry are then prefixed accordingly. The application itself always serves its routes at the root (`/collections`, `/health`, …), so the reverse proxy has to strip the prefix before forwarding:
+Requests to `stacindex.org` then get links prefixed with `/api`. The application itself always serves its routes at the root (`/collections`, `/health`, …), so the reverse proxy has to strip the prefix before forwarding:
 
 ```nginx
 location /api/ {
@@ -174,6 +174,7 @@ location /api/ {
     proxy_set_header Host              $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-Host  $host;
+    proxy_set_header X-Forwarded-Prefix /api;   # optional, makes API_BASE_URL unnecessary
 }
 ```
 
