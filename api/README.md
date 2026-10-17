@@ -1,4 +1,4 @@
-# STAC Atlas API
+# STAC Index API
 
 A centralized platform for managing, indexing, and providing STAC (SpatioTemporal Asset Catalog) Collection metadata from distributed catalogs and APIs.
 
@@ -142,7 +142,7 @@ Build and run the API using Docker:
 
 ```bash
 # Build the image
-docker build -t stac-atlas-api .
+docker build -t stac-index-api .
 
 # Run with docker-compose
 docker-compose up
@@ -173,8 +173,8 @@ curl http://localhost:3000/
 ```json
 {
   "type": "Catalog",
-  "id": "stac-atlas",
-  "title": "STAC Atlas",
+  "id": "stac-index",
+  "title": "STAC Index",
   "description": "A centralized platform for managing, indexing, and providing STAC Collection metadata from distributed catalogs and APIs.",
   "stac_version": "1.0.0",
   "conformsTo": ["https://api.stacspec.org/v1.0.0/core", "..."],
@@ -336,7 +336,7 @@ curl http://localhost:3000/collection-queryables
   "$schema": "https://json-schema.org/draft/2019-09/schema",
   "$id": "http://localhost:3000/collection-queryables",
   "type": "object",
-  "title": "STAC Atlas Collections Queryables",
+  "title": "STAC Index Collections Queryables",
   "properties": {
     "id": {
       "title": "Collection ID",
@@ -382,9 +382,9 @@ curl http://localhost:3000/health
 ```json
 {
   "type": "Health",
-  "id": "stac-atlas-health",
-  "title": "STAC Atlas API Health Check",
-  "description": "Health status and readiness information for the STAC Atlas API",
+  "id": "stac-index-health",
+  "title": "STAC Index API Health Check",
+  "description": "Health status and readiness information for the STAC Index API",
   "status": "ok",
   "ready": true,
   "uptimeSec": 3600,
@@ -802,13 +802,13 @@ GET /collections?filter-lang=cql2-json&filter={"op":"t_intersects","args":[{"pro
 
 ### Collection Links
 
-Each collection includes links to both STAC Atlas and the original source:
+Each collection includes links to both STAC Index and the original source:
 
 | Rel | Description |
 |-----|-------------|
-| `self` | This collection in STAC Atlas |
-| `root` | STAC Atlas landing page |
-| `parent` | STAC Atlas landing page |
+| `self` | This collection in STAC Index |
+| `root` | STAC Index landing page |
+| `parent` | STAC Index landing page |
 | `items` / `item` | Original source item references |
 | `source_*` | Other links from original source catalog |
 

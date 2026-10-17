@@ -14,8 +14,8 @@ router.get('/', (req, res) => {
   
   res.json({
     type: 'Catalog',
-    id: 'stac-atlas',
-    title: 'STAC Atlas',
+    id: 'stac-index',
+    title: 'STAC Index',
     description: 'A centralized platform for managing, indexing, and providing STAC Collection metadata from distributed catalogs and APIs.',
     stac_version: '1.0.0',
     conformsTo: CONFORMANCE_URIS,
@@ -24,13 +24,13 @@ router.get('/', (req, res) => {
         rel: 'self',
         href: baseUrl,
         type: 'application/json',
-        title: 'STAC Atlas Landing Page'
+        title: 'STAC Index Landing Page'
       },
       {
         rel: 'root',
         href: baseUrl,
         type: 'application/json',
-        title: 'STAC Atlas root catalog'
+        title: 'STAC Index root catalog'
       },
       {
         rel: 'conformance',

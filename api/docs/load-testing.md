@@ -1,6 +1,6 @@
 # Load Testing Documentation
 
-This document describes how to perform load tests on the STAC Atlas API to evaluate its performance under different load conditions.
+This document describes how to perform load tests on the STAC Index API to evaluate its performance under different load conditions.
 
 ## Overview
 

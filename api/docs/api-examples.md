@@ -12,9 +12,9 @@ https://www.w3schools.com/tags/ref_urlencode.asp
 All examples in this documentation use clear, human-readable text for better readability. 
 When copying URLs into a browser or terminal, ensure special characters are encoded as needed.
 
-# STAC Atlas API – Example Requests & Search Patterns
+# STAC Index API – Example Requests & Search Patterns
 
-This file shows how to test the main endpoints of the STAC Atlas API using curl. It contains practical examples for search queries, filters, paging, and error cases. All examples assume your server is running locally at http://localhost:3000.
+This file shows how to test the main endpoints of the STAC Index API using curl. It contains practical examples for search queries, filters, paging, and error cases. All examples assume your server is running locally at http://localhost:3000.
 
 ---
 

@@ -1,4 +1,4 @@
-# Orchestrates the full STAC-Atlas stack.
+# Orchestrates the full STAC Index stack.
 # Single source for DB credentials: project-root .env (see .env.example)
 #   cp .env.example .env
 #   docker compose up --build -d

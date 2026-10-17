@@ -1,8 +1,9 @@
 {
-  "name": "crawler",
+  "name": "stac-index-crawler",
   "version": "1.0.0",
   "description": "STAC Index crawler",
   "main": "index.js",
+  "private": true,
   "scripts": {
     "start": "node index.js",
     "docker:build": "docker build -t stac-crawler .",
@@ -12,8 +13,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "MoreGeo (https://moregeo.it)",
+  "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
     "@databases/pg": "^5.5.0",

@@ -4,53 +4,62 @@ const YAML = require('yamljs');
 const OPENAPI_PATH = path.join(__dirname, '..', 'docs', 'openapi.yaml');
 
 /**
- * Loads docs/openapi.yaml and replaces its "servers" list with the deployment's
- * public base URL, so the Swagger UI ("Try it out") and the served spec point at
- * the host the API is actually reachable at instead of a hardcoded one.
+ * Loads docs/openapi.yaml once at startup.
  *
- * The URL comes from API_BASE_URL (see api/.env.example) — the same variable the
- * runtime links use, see utils/baseUrl.js. Without it, the servers list from the
- * YAML file is kept unchanged.
- *
- * @returns {{ document: object, yaml: string }} Parsed spec and its YAML serialization
+ * @returns {object} Parsed spec
  * @throws {Error} When docs/openapi.yaml is missing or not parseable
  */
 function loadOpenApiSpec() {
-  const document = YAML.load(OPENAPI_PATH);
-
-  const servers = resolveServers(document.servers);
-  if (servers) {
-    document.servers = servers;
-  }
-
-  // Serialize with a generous inline depth so the output stays block-style YAML
-  return { document, yaml: YAML.stringify(document, 20, 2) };
+  return YAML.load(OPENAPI_PATH);
 }
 
 /**
- * Builds the servers list from API_BASE_URL: the configured URL becomes the first
- * entry, the file's remaining entries follow. If the file already documents that
- * URL (e.g. the local development server), its description is kept — only the
- * order changes.
+ * Returns a copy of the spec whose "servers" list starts with the base URL the
+ * request came in through (see utils/baseUrl.js), so the Swagger UI ("Try it out")
+ * and the served spec point at the URL the client actually used.
+ *
+ * @param {object} document - Spec from loadOpenApiSpec()
+ * @param {string} baseUrl - Base URL of the current request
+ * @returns {object} Spec with replaced servers list
+ */
+function specForBaseUrl(document, baseUrl) {
+  return { ...document, servers: resolveServers(document.servers, baseUrl) };
+}
+
+/**
+ * Serializes a spec with a generous inline depth so the output stays block-style YAML.
+ *
+ * @param {object} document - Spec to serialize
+ * @returns {string} YAML text
+ */
+function toYaml(document) {
+  return YAML.stringify(document, 20, 2);
+}
+
+/**
+ * Builds the servers list: the request's base URL becomes the first entry, the
+ * file's remaining entries follow. If the file already documents that URL (e.g.
+ * the local development server), its description is kept — only the order changes.
  *
  * @param {Array<{url: string, description?: string}>|undefined} fileServers - servers from the YAML file
- * @returns {Array<{url: string, description: string}>|undefined} Replacement list, or undefined to keep the file's list
+ * @param {string} baseUrl - Base URL of the current request
+ * @returns {Array<{url: string, description: string}>} Replacement list
  */
-function resolveServers(fileServers) {
-  const configured = (process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
-  if (!configured) return undefined;
+function resolveServers(fileServers, baseUrl) {
+  const current = String(baseUrl || '').replace(/\/+$/, '');
 
   const servers = (Array.isArray(fileServers) ? fileServers : []).filter(
     server => server && server.url
   );
+  if (!current) return servers;
 
-  const isConfigured = server => server.url.replace(/\/+$/, '') === configured;
-  const documented = servers.find(isConfigured);
+  const isCurrent = server => server.url.replace(/\/+$/, '') === current;
+  const documented = servers.find(isCurrent);
 
   return [
-    documented || { url: configured, description: 'Deployment server' },
-    ...servers.filter(server => !isConfigured(server)),
+    documented || { url: current, description: 'Current server' },
+    ...servers.filter(server => !isCurrent(server)),
   ];
 }
 
-module.exports = { loadOpenApiSpec, OPENAPI_PATH };
+module.exports = { loadOpenApiSpec, specForBaseUrl, toYaml, OPENAPI_PATH };

@@ -11,7 +11,8 @@ const { rateLimitMiddleware } = require('./middleware/rateLimit');
 const { corsMiddleware } = require('./middleware/cors');
 const { requestSizeLimitMiddleware, MAX_BODY_SIZE } = require('./middleware/requestSize');
 const { httpLogger } = require('./utils/logger');
-const { loadOpenApiSpec } = require('./utils/openapi');
+const { loadOpenApiSpec, specForBaseUrl, toYaml } = require('./utils/openapi');
+const { getBaseUrl } = require('./utils/baseUrl');
 
 // Import routes
 const indexRouter = require('./routes/index');
@@ -48,25 +49,35 @@ app.use(express.urlencoded({ extended: false, limit: MAX_BODY_SIZE }));
 app.use(corsMiddleware);
 
 // OpenAPI spec + Swagger UI (if openapi.yaml exists) - MUST be before Content-Type middleware
-// The spec's "servers" entry is taken from API_BASE_URL, so the docs point at this deployment.
+// The spec's "servers" entry is the base URL of each request, so the docs point at
+// the URL the client used (see utils/baseUrl.js).
 try {
-  const { document: swaggerDocument, yaml: swaggerYaml } = loadOpenApiSpec();
+  const openApiDocument = loadOpenApiSpec();
+  const requestSpec = req => specForBaseUrl(openApiDocument, getBaseUrl(req));
 
   // YAML and JSON serialization of the same spec. The media types must match the
   // actual payload — advertising "+json" for YAML makes clients run JSON.parse()
   // on YAML text and fail.
   app.get('/openapi.yaml', (req, res) => {
     res.setHeader('Content-Type', 'application/vnd.oai.openapi;version=3.0');
-    res.send(swaggerYaml);
+    res.send(toYaml(requestSpec(req)));
   });
 
   app.get('/openapi.json', (req, res) => {
     res.setHeader('Content-Type', 'application/vnd.oai.openapi+json;version=3.0');
-    res.json(swaggerDocument);
+    res.json(requestSpec(req));
   });
 
-  app.use('/api-docs', swaggerUi.serve);
-  app.get('/api-docs', swaggerUi.setup(swaggerDocument));
+  // req.swaggerDoc makes swagger-ui-express render the per-request spec
+  app.use(
+    '/api-docs',
+    (req, res, next) => {
+      req.swaggerDoc = requestSpec(req);
+      next();
+    },
+    swaggerUi.serveFiles(),
+    swaggerUi.setup()
+  );
 } catch (err) {
   console.log('OpenAPI documentation not found. Create docs/openapi.yaml to enable Swagger UI.');
 }

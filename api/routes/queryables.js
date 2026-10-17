@@ -50,13 +50,13 @@ router.get('/', async (req, res) => {
         rel: 'root',
         href: baseUrl,
         type: 'application/json',
-        title: 'STAC Atlas Landing Page'
+        title: 'STAC Index Landing Page'
       },
       {
         rel: 'parent',
         href: baseUrl,
         type: 'application/json',
-        title: 'STAC Atlas Landing Page'
+        title: 'STAC Index Landing Page'
       }
     ]
   };

@@ -1,6 +1,6 @@
 # Collection Search Parameters
 
-This document describes the query parameters supported by the STAC Atlas Collection Search API (`GET /collections`).
+This document describes the query parameters supported by the STAC Index Collection Search API (`GET /collections`).
 
 ## Overview
 

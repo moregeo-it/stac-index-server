@@ -30,7 +30,7 @@ describe('Collections Link Processing', () => {
   });
 
   describe('GET /collections/:id - Link Resolution', () => {
-    test('should include base STAC Atlas links (self, root, parent)', async () => {
+    test('should include base STAC Index links (self, root, parent)', async () => {
       const mockRow = {
         stac_id: 'test-collection',
         source_url: 'https://source.example.com/collection.json',
@@ -374,7 +374,7 @@ describe('Collections Link Processing', () => {
 
     test('should preserve source_url and source_id fields in collection', async () => {
       const mockRow = {
-        stac_id: 'atlas-123',
+        stac_id: 'index-123',
         source_url: 'https://source.example.com/collection.json',
         full_json: {
           id: 'original-source-id',
@@ -391,11 +391,11 @@ describe('Collections Link Processing', () => {
 
       db.query.mockResolvedValue({ rows: [mockRow] });
 
-      const response = await request(app).get('/collections/atlas-123');
+      const response = await request(app).get('/collections/index-123');
 
       expect(response.status).toBe(200);
-      expect(response.body.id).toBe('atlas-123');
-      expect(response.body.stac_id).toBe('atlas-123');
+      expect(response.body.id).toBe('index-123');
+      expect(response.body.stac_id).toBe('index-123');
       expect(response.body.source_id).toBe('original-source-id');
       expect(response.body.source_url).toBe('https://source.example.com/collection.json');
     });

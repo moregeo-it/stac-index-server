@@ -1,7 +1,7 @@
 {
-  "name": "stac-atlas-api",
+  "name": "stac-index-api",
   "version": "1.0.0",
-  "description": "STAC API for STAC Atlas - A centralized platform for managing STAC Collection metadata",
+  "description": "STAC API for STAC Index - A centralized platform for managing STAC Collection metadata",
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
@@ -19,7 +19,7 @@
     "geospatial",
     "collections"
   ],
-  "author": "STAC Atlas Team",
+  "author": "MoreGeo (https://moregeo.it)",
   "license": "Apache-2.0",
   "dependencies": {
     "cors": "^2.8.5",

@@ -1,6 +1,6 @@
-# STAC-Atlas Database
+# STAC Index Database
 
-This component contains the PostgreSQL database setup for STAC-Atlas – a system for managing and searching STAC (SpatioTemporal Asset Catalog) Collections.
+This component contains the PostgreSQL database setup for STAC Index – a system for managing and searching STAC (SpatioTemporal Asset Catalog) Collections.
 
 ## Overview
 
