@@ -31,6 +31,16 @@ The `crawllog_catalog` table also serves as a mirror of the STAC index and is us
 | `collection` | Main metadata of STAC Collections (title, description, spatial/temporal extent, license). Stores complete JSON representation in `full_json`. |
 | `collection_summaries` | Statistical summaries (value ranges, sets) for collection properties. |
 
+#### STAC Index
+
+Tables of the STAC Index website ([stacindex.org](https://stacindex.org)), taken over from the original [STAC Index schema](https://github.com/moregeo-it/stac-index/blob/master/database/create.sql) so both systems share one database.
+
+| Table | Description |
+|-------|-------------|
+| `catalogs` | Catalogs and APIs registered in the STAC Index (url, slug, title, summary, access, `is_api`). |
+| `ecosystem` | Software and tools around STAC, with categories and programming language. |
+| `tutorials` | Tutorials and learning resources, with tags and language code. |
+
 #### Lookup Tables
 
 | Table | Description |
@@ -123,6 +133,37 @@ All scripts in the `./init/` folder are automatically executed on first start in
 | `04_relation_tables.sql` | Creates junction tables (n:n relationships) |
 | `05_indexes.sql` | Creates performance indexes |
 | `06_triggers.sql` | Creates triggers for full-text search |
+| `07_tables_stac_index.sql` | Creates STAC Index tables (`catalogs`, `ecosystem`, `tutorials`) |
+
+### Adding the STAC Index tables to an existing database
+
+Init scripts only run on a fresh volume. `07_tables_stac_index.sql` is idempotent, so it can be applied to a running database:
+
+```bash
+docker exec -i stac_db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < init/07_tables_stac_index.sql
+```
+
+Grant the API and crawler users access afterwards (on a fresh setup this is handled by the default privileges from `00_users.sh`):
+
+```sql
+GRANT SELECT ON catalogs, ecosystem, tutorials TO stac_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON catalogs, ecosystem, tutorials TO stac_crawler;
+```
+
+### Importing existing STAC Index data
+
+Export only the data from the old STAC Index database and load it into this one. Then reset the identity sequences, because the imported rows keep their original ids:
+
+```bash
+pg_dump --data-only -t catalogs -t ecosystem -t tutorials <old_db> > stac_index_data.sql
+docker exec -i stac_db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < stac_index_data.sql
+```
+
+```sql
+SELECT setval(pg_get_serial_sequence('catalogs', 'id'),  COALESCE(MAX(id), 1)) FROM catalogs;
+SELECT setval(pg_get_serial_sequence('ecosystem', 'id'), COALESCE(MAX(id), 1)) FROM ecosystem;
+SELECT setval(pg_get_serial_sequence('tutorials', 'id'), COALESCE(MAX(id), 1)) FROM tutorials;
+```
 
 ## Migrations
 
