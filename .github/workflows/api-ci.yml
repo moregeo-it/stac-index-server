@@ -29,7 +29,7 @@ jobs:
     
     strategy:
       matrix:
-        node-version: [22.x]
+        node-version: [24.x]
     
     steps:
       # Step 1: Checkout Repository
@@ -134,7 +134,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: 'npm'
           cache-dependency-path: api/package-lock.json
       
@@ -193,7 +193,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: 'npm'
           cache-dependency-path: api/package-lock.json
 
@@ -301,7 +301,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: 'npm'
           cache-dependency-path: api/package-lock.json
       

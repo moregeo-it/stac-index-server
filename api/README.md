@@ -50,7 +50,7 @@ A centralized platform for managing, indexing, and providing STAC (SpatioTempora
 
 ### Prerequisites
 
-- **Node.js** version 22.0.0 or higher
+- **Node.js** version 24.0.0 or higher
 - **PostgreSQL** with PostGIS extension (for spatial queries)
 - **npm** or **yarn** package manager
 
@@ -148,7 +148,7 @@ docker build -t stac-atlas-api .
 docker-compose up
 ```
 
-The Dockerfile uses Node.js 22 Alpine and exposes port 3000.
+The Dockerfile uses Node.js 24 Alpine and exposes port 3000.
 
 ---
 
@@ -901,7 +901,7 @@ http://localhost:3000/openapi.yaml
 
 | Component | Technology |
 |-----------|------------|
-| Runtime | Node.js 22+ |
+| Runtime | Node.js 24+ |
 | Framework | Express.js 4.x |
 | Database | PostgreSQL with PostGIS |
 | CQL2 Parser | cql2-wasm (Rust WASM) |
