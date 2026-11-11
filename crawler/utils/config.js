@@ -76,8 +76,16 @@ function getConfig() {
         maxConcurrencyPerDomain: cliArgs.maxConcurrencyPerDomain !== undefined ? cliArgs.maxConcurrencyPerDomain :
                                  (process.env.MAX_CONCURRENCY_PER_DOMAIN ? parseInt(process.env.MAX_CONCURRENCY_PER_DOMAIN, 10) : defaults.maxConcurrencyPerDomain),
         
-        // Fresh start option - clear crawl log and recrawl everything
+        // Fresh start option - clear crawl queue and recrawl everything (implies fullRecrawl)
         fresh: cliArgs.fresh || process.env.FRESH_CRAWL === 'true' || false,
+
+        // Full re-crawl - crawl every source from its root again (including sources that were
+        // already completed) and re-fetch every collection, instead of resuming/skipping
+        fullRecrawl: cliArgs.fullRecrawl || process.env.FULL_RECRAWL === 'true' || false,
+
+        // Length of a full re-crawl cycle in days (shared with the scheduler). A cycle that takes
+        // longer is still finished, but reported as an error at the end.
+        cycleIntervalDays: parseInt(process.env.CRAWL_DAYS_INTERVAL, 10) || 7,
         
         // Legacy rate limiting options
         maxConcurrency: cliArgs.maxConcurrency !== undefined ? cliArgs.maxConcurrency :
@@ -90,6 +98,11 @@ function getConfig() {
                            (process.env.MAX_REQUEST_RETRIES ? parseInt(process.env.MAX_REQUEST_RETRIES, 10) : defaults.maxRequestRetries)
     };
     
+    // --fresh means "start over": that is a full re-crawl with an empty queue
+    if (config.fresh) {
+        config.fullRecrawl = true;
+    }
+
     // Validate mode
     const validModes = ['catalogs', 'apis', 'both'];
     if (!validModes.includes(config.mode)) {

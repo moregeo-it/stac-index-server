@@ -58,13 +58,23 @@ export function resetShutdownFlag() {
  * Fetches catalog data from the legacy STAC Index API and processes it
  * @async
  * @function crawler
+ * @param {Object} [overrides] - Config values that take precedence over CLI/env (used by the scheduler,
+ *                               e.g. { fullRecrawl: true })
+ * @param {Object} [options]
+ * @param {boolean} [options.keepDbOpen=false] - Do not close the DB pool at the end (scheduler reuses it)
+ * @param {boolean} [options.handleSignals=true] - Install SIGINT/SIGTERM handlers (the scheduler has its own)
  * @returns {Promise<Object>} Returns statistics about the crawl including success status and runtime
  */
-export const crawler = async () => {
+export const crawler = async (overrides = {}, { keepDbOpen = false, handleSignals = true } = {}) => {
     // Start the timer
     const startTime = Date.now();
     let dbError = false;
     let crawlError = false;
+    let config = null;
+    // Crawl cycle of this full re-crawl; null in resume mode
+    let cycle = null;
+    // Whether this run covered all remaining sources (no MAX_CATALOGS/MAX_APIS truncation)
+    let truncated = false;
     
     // Setup graceful shutdown handler
     const shutdownHandler = async (signal) => {
@@ -85,12 +95,19 @@ export const crawler = async () => {
         shutdownRequested = true;
     };
     
-    process.on('SIGINT', shutdownHandler);
-    process.on('SIGTERM', shutdownHandler);
+    if (handleSignals) {
+        process.on('SIGINT', shutdownHandler);
+        process.on('SIGTERM', shutdownHandler);
+    }
+    const removeSignalHandlers = () => {
+        process.off('SIGINT', shutdownHandler);
+        process.off('SIGTERM', shutdownHandler);
+    };
     
     try {
         // Load configuration
-        const config = getConfig();
+        config = { ...getConfig(), ...overrides };
+        if (config.fresh) config.fullRecrawl = true;
         
         // Initialize database connection
         try {
@@ -101,21 +118,38 @@ export const crawler = async () => {
             throw err;
         }
         
-        // Clear crawllog if fresh mode is enabled (allows re-crawling everything)
-        if (config.fresh) {
-            console.log('\n=== Fresh mode enabled - Clearing crawllog ===');
-            try {
-                await db.clearCrawllogCollection();
-                console.log('Crawllog collection entries cleared. All URLs will be re-crawled.');
-            } catch (err) {
-                console.error(`Warning: Failed to clear crawllog: ${err.message}`);
+        // Full re-crawl (scheduler default, --full-recrawl, --fresh) runs inside a crawl cycle
+        // that is persisted in the DB (crawl_cycle). If the process is stopped, the next run
+        // continues the running cycle instead of starting over:
+        // - sources already completed in the cycle are skipped
+        // - all other sources are crawled from their root (also ones completed in earlier cycles)
+        // - a collection is only skipped if it was already refreshed during this cycle
+        if (config.fullRecrawl) {
+            const running = config.fresh ? null : await db.getRunningCycle(config.cycleIntervalDays);
+            if (running) {
+                cycle = running;
+                console.log(`\n=== Resuming full re-crawl cycle #${cycle.id} (started ${formatDuration(cycle.durationMs)} ago) ===`);
+            } else {
+                // New cycle: start every source from its root, so drop the old queue
+                cycle = await db.startCycle(config.cycleIntervalDays);
+                console.log(`\n=== Starting full re-crawl cycle #${cycle.id} ===`);
+                try {
+                    const cleared = await db.clearCrawllogCollection();
+                    console.log(`Removed ${cleared} queued URL(s). All sources will be crawled from their root.`);
+                } catch (err) {
+                    console.error(`Warning: Failed to clear crawllog: ${err.message}`);
+                }
             }
+            config.cycleId = cycle.id;
+            db.setCurrentCycle(cycle.id);
+        } else {
+            db.setCurrentCycle(null);
         }
         
         // Display configuration
         console.log('\n=== STAC Crawler Configuration ===');
         console.log(`Mode: ${config.mode}`);
-        console.log(`Fresh Mode: ${config.fresh ? 'enabled (re-crawl everything)' : 'disabled (resume/skip crawled URLs)'}`);
+        console.log(`Full Re-crawl: ${config.fullRecrawl ? 'enabled (crawl all sources and refresh every collection)' : 'disabled (resume/skip crawled URLs)'}`);
         console.log(`Max Catalogs: ${config.maxCatalogs === 0 ? 'unlimited' : config.maxCatalogs} (debugging limit)`);
         console.log(`Max APIs: ${config.maxApis === 0 ? 'unlimited' : config.maxApis} (debugging limit)`);
         console.log(`Timeout: ${config.timeout === Infinity ? 'unlimited' : config.timeout + 'ms'}`);
@@ -159,8 +193,15 @@ export const crawler = async () => {
         console.log('\n=== Loading catalogs from crawllog_catalog for crawling ===');
         const crawllogCatalogs = await db.getCrawllogCatalogs({ isApi: false });
         const crawllogApis = await db.getCrawllogCatalogs({ isApi: true });
-        const pendingCatalogIds = new Set(await db.getCrawllogCatalogIdsWithPendingQueue({ isApi: false }));
-        const pendingApiIds = new Set(await db.getCrawllogCatalogIdsWithPendingQueue({ isApi: true }));
+        // In a full re-crawl every remaining source is seeded from its root (pending queue entries
+        // are still pulled in addition), because nested child catalogs are not persisted in the queue
+        const pendingCatalogIds = config.fullRecrawl
+            ? new Set()
+            : new Set(await db.getCrawllogCatalogIdsWithPendingQueue({ isApi: false }));
+        const pendingApiIds = config.fullRecrawl
+            ? new Set()
+            : new Set(await db.getCrawllogCatalogIdsWithPendingQueue({ isApi: true }));
+        const completedInCycle = cycle ? await db.getCompletedSourceIds(cycle.id) : new Set();
         
         console.log(`Loaded ${crawllogCatalogs.length} catalogs and ${crawllogApis.length} APIs from crawllog_catalog\n`);
         
@@ -207,6 +248,7 @@ export const crawler = async () => {
         globalStats.start(totalItems);
         
         const shouldCrawlSeed = (seed) => {
+            if (config.fullRecrawl) return !completedInCycle.has(seed.crawllogCatalogId);
             if (seed.hasPendingQueue) return true;
             if (!seed.createdAt || !seed.updatedAt) return true;
             const createdAt = new Date(seed.createdAt).getTime();
@@ -222,7 +264,9 @@ export const crawler = async () => {
             const allCatalogsToProcess = regularCatalogs.filter(shouldCrawlSeed);
             const skippedCatalogs = regularCatalogs.length - allCatalogsToProcess.length;
             if (skippedCatalogs > 0) {
-                console.log(`Skipping ${skippedCatalogs} catalogs already fully crawled (no pending queue)`);
+                console.log(config.fullRecrawl
+                    ? `Skipping ${skippedCatalogs} catalogs already completed in cycle #${cycle.id}`
+                    : `Skipping ${skippedCatalogs} catalogs already fully crawled (no pending queue)`);
             }
             
             // Note: MAX_CATALOGS limit is for debugging purposes only
@@ -230,6 +274,7 @@ export const crawler = async () => {
             const catalogsToProcess = config.maxCatalogs === 0 
                 ? allCatalogsToProcess 
                 : allCatalogsToProcess.slice(0, config.maxCatalogs);
+            if (catalogsToProcess.length < allCatalogsToProcess.length) truncated = true;
             
             console.log(`Processing ${catalogsToProcess.length} catalogs (max: ${config.maxCatalogs === 0 ? 'unlimited' : config.maxCatalogs})\n`);
             
@@ -258,13 +303,16 @@ export const crawler = async () => {
             }));
             const skippedApis = realApis.length - apiObjects.length;
             if (skippedApis > 0) {
-                console.log(`Skipping ${skippedApis} APIs already fully crawled (no pending queue)`);
+                console.log(config.fullRecrawl
+                    ? `Skipping ${skippedApis} APIs already completed in cycle #${cycle.id}`
+                    : `Skipping ${skippedApis} APIs already fully crawled (no pending queue)`);
             }
                 
             if (apiObjects.length > 0) {
                 // Note: MAX_APIS limit is for debugging purposes only
                 // Set maxApis to 0 or use --max-apis 0 for unlimited API crawling
                 const apisToProcess = config.maxApis === 0 ? apiObjects : apiObjects.slice(0, config.maxApis);
+                if (apisToProcess.length < apiObjects.length) truncated = true;
                 console.log(`Found ${apiObjects.length} APIs. Processing ${apisToProcess.length} (max: ${config.maxApis === 0 ? 'unlimited' : config.maxApis})...`);
                 
                 try {
@@ -288,18 +336,49 @@ export const crawler = async () => {
         // Stop global statistics tracking and log final stats
         globalStats.stop();
         
-        // Deactivate collections that haven't been updated in the last 7 days
-        if (!dbError) {
+        // Finish the crawl cycle if this run went through all remaining sources.
+        // Interrupted runs (Ctrl+C, container stop, time window) and runs truncated by
+        // MAX_CATALOGS/MAX_APIS leave the cycle open; the next run continues it.
+        let cycleCompleted = false;
+        let cycleOverran = false;
+        if (!dbError && cycle && !crawlError && !shutdownRequested && !truncated) {
             try {
-                console.log('\nChecking for stale collections...');
-                await db.deactivateStaleCollections();
+                // Deactivate collections that were not confirmed in this cycle. Only safe when both
+                // catalogs and APIs were crawled — otherwise the other type would be deactivated.
+                if (config.mode === 'both') {
+                    console.log('\nChecking for stale collections...');
+                    await db.deactivateStaleCollections({ cycleId: cycle.id });
+                } else {
+                    console.log(`\nSkipping stale-collection cleanup (mode "${config.mode}", only runs with mode "both")`);
+                }
+
+                const finished = await db.completeCycle(cycle.id, config.cycleIntervalDays);
+                cycleCompleted = true;
+                cycleOverran = finished.overran;
+                console.log(`\nFull re-crawl cycle #${cycle.id} completed in ${formatDuration(finished.durationMs)}`);
+
+                if (cycleOverran) {
+                    console.error('\n' + '!'.repeat(60));
+                    console.error(`ERROR: Full re-crawl cycle #${cycle.id} exceeded the ${config.cycleIntervalDays}-day window`);
+                    console.error(`   Duration: ${formatDuration(finished.durationMs)}`);
+                    console.error('   The crawl was finished anyway. The next cycle is overdue and starts right away.');
+                    console.error('   Consider more PARALLEL_DOMAINS / higher rate limits or a longer CRAWL_DAYS_INTERVAL.');
+                    console.error('!'.repeat(60) + '\n');
+                }
             } catch (err) {
-                console.error(`Error deactivating stale collections: ${err.message}`);
+                console.error(`Error completing crawl cycle #${cycle.id}: ${err.message}`);
             }
+        } else if (!dbError && cycle) {
+            const reason = crawlError ? 'crawl error'
+                : shutdownRequested ? 'interrupted'
+                : 'limited by MAX_CATALOGS/MAX_APIS';
+            console.log(`\nFull re-crawl cycle #${cycle.id} stays open (${reason}) - the next run continues it`);
         }
+        db.setCurrentCycle(null);
+        removeSignalHandlers();
         
-        // Close database connection
-        if (!dbError) {
+        // Close database connection (the scheduler keeps the pool open for the next run)
+        if (!dbError && !keepDbOpen) {
             try {
                 await db.close();
                 console.log('\nDatabase connection closed.');
@@ -323,6 +402,11 @@ export const crawler = async () => {
             success: !dbError && !crawlError,
             dbError,
             crawlError,
+            interrupted: shutdownRequested,
+            fullRecrawl: Boolean(config?.fullRecrawl),
+            cycleId: cycle?.id ?? null,
+            cycleCompleted,
+            cycleOverran,
             elapsedTime,
             startTime,
             endTime
@@ -333,5 +417,8 @@ export const crawler = async () => {
 // Run crawler if this file is executed directly
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule || import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
-    crawler();
+    crawler().then(stats => {
+        // Non-zero exit code on errors and on a full re-crawl cycle that exceeded its window
+        if (!stats.success || stats.cycleOverran) process.exitCode = 1;
+    });
 }

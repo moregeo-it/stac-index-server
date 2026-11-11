@@ -4,7 +4,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: stac-crawler
-    # restart: unless-stopped
+    # Runs scheduler.js (see Dockerfile). Restarting continues the running crawl cycle.
+    restart: unless-stopped
+    # Time to finish the current batch and flush to the DB on `docker compose stop`
+    stop_grace_period: 60s
     env_file:
       - path: .env
         required: false

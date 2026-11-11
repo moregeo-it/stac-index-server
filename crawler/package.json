@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node index.js",
     "docker:build": "docker build -t stac-crawler .",
-    "docker:run": "docker run --rm stac-crawler",
+    "docker:run": "docker run --rm stac-crawler node index.js",
     "docker:compose:up": "docker-compose up -d",
     "docker:compose:down": "docker-compose down",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",

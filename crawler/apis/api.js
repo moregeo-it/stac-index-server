@@ -252,6 +252,16 @@ async function crawlSingleApiDomain(apis, domain, config = {}) {
     const finalFlush = await flushCollectionsToDb(results, crawleeLog, true);
     results.stats.collectionsSaved += finalFlush.saved;
     results.stats.collectionsFailed += finalFlush.failed;
+
+    // crawler.run() only returns once this domain's queue is drained, so every source of this
+    // domain is completely crawled -> record it in the crawl cycle (resume after container stop)
+    if (config.cycleId) {
+        try {
+            await db.markSourcesCompleted(config.cycleId, apis.map(item => item.crawllogCatalogId));
+        } catch (err) {
+            console.error(`  [${domain}] Failed to mark API sources as completed in crawl cycle: ${err.message}`);
+        }
+    }
     
     // Update global stats with final counts
     globalStats.increment('collectionsSaved', results.stats.collectionsSaved);

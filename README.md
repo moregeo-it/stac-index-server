@@ -103,7 +103,7 @@ The components interact in a well-defined data flow:
 
 - **Automated Indexing**: Crawls and indexes STAC Collections from static catalogs and STAC APIs listed in the legacy STAC Index (stacindex.org)
 - **Recursive Navigation**: Traverses nested catalog structures with configurable depth limits
-- **Incremental Updates**: Supports pause/resume and periodic re-crawling without full re-indexing
+- **Resumable & Periodic Updates**: Single runs can be paused and resumed; the scheduler does a full weekly re-crawl of all sources to pick up new and changed collections
 - **STAC Validation**: Validates collections against official STAC schemas before storage
 
 ### Search and Filtering
@@ -275,7 +275,7 @@ node index.js --mode apis --max-apis 3
 # Full production crawl
 node index.js --mode both --max-catalogs 0 --max-apis 0
 
-# Start scheduler for weekly re-crawling
+# Start scheduler for a weekly full re-crawl of all sources (default command in Docker)
 node scheduler.js
 ```
 

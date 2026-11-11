@@ -134,6 +134,15 @@ All scripts in the `./init/` folder are automatically executed on first start in
 | `05_indexes.sql` | Creates performance indexes |
 | `06_triggers.sql` | Creates triggers for full-text search |
 | `07_tables_stac_index.sql` | Creates STAC Index tables (`catalogs`, `ecosystem`, `tutorials`) |
+| `08_tables_crawl_cycle.sql` | Creates `crawl_cycle` / `crawl_cycle_source` for the resumable weekly full re-crawl |
+
+### Adding the crawl cycle tables to an existing database
+
+Required for the crawler scheduler (the default Docker command). `08_tables_crawl_cycle.sql` is idempotent and contains its own grants:
+
+```bash
+docker exec -i stac_db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < init/08_tables_crawl_cycle.sql
+```
 
 ### Adding the STAC Index tables to an existing database
 

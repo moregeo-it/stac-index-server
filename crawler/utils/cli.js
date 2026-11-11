@@ -42,6 +42,8 @@ export function parseCliArgs() {
             config.maxConcurrencyPerDomain = parseInt(args[++i], 10);
         } else if (arg === '--fresh' || arg === '-f') {
             config.fresh = true;
+        } else if (arg === '--full-recrawl') {
+            config.fullRecrawl = true;
         } else if (arg === '--help' || arg === '-h') {
             printHelp();
             process.exit(0);
@@ -73,8 +75,11 @@ STAC Crawler Configuration Options:
   --concurrency-per-domain <n>   Max concurrent requests per domain (default: 10)
   
   Resume/Fresh Options:
-  -f, --fresh                    Clear crawl log and start fresh (ignore previous progress)
+  -f, --fresh                    Clear crawl queue and start fresh (implies --full-recrawl)
                                  Without this flag, crawler resumes from where it left off
+  --full-recrawl                 Crawl ALL sources from their root again (also completed ones)
+                                 and re-fetch every collection to pick up new/changed content.
+                                 The scheduler (scheduler.js) uses this mode by default.
   
   Legacy Rate Limiting Options (still supported):
   --max-concurrency <number>     Maximum concurrent requests (default: 5)
@@ -99,6 +104,8 @@ Environment Variables:
   SAME_DOMAIN_DELAY_SECS         Same as --domain-delay
   MAX_REQUEST_RETRIES            Same as --max-retries
   MAX_DEPTH                      Same as --max-depth (use 0 for unlimited)
+  FRESH_CRAWL                    Same as --fresh (true/false)
+  FULL_RECRAWL                   Same as --full-recrawl (true/false)
 
 Examples:
   # Basic usage

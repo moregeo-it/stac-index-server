@@ -43,10 +43,11 @@ A Node.js crawler for the legacy STAC Index API (stacindex.org) that fetches and
 - Database Integration: PostgreSQL storage with deadlock handling
 - Parallel Execution: Efficient domain-based parallel processing with configurable rate limiting
 - Graceful Shutdown: Stop after current batch with Ctrl+C, resume later
-- Pause/Resume Support: Already-crawled collections are tracked and skipped on re-run
-- Fresh Mode: Clear crawl log with `--fresh` flag to re-crawl everything
+- Pause/Resume Support: A single run (`node index.js`) resumes an interrupted crawl and skips already-crawled collections
+- Full Re-crawl: The scheduler (default Docker command) or `--full-recrawl` crawls every source again from its root and refreshes every collection, resumable across restarts
+- Fresh Mode: `--fresh` clears the crawl queue and does a full re-crawl
 - STAC Validation: Validates collections using stac-node-validator
-- Automatic Cleanup: Marks stale collections as inactive after 7 days without updates
+- Automatic Cleanup: After a complete full re-crawl, collections that were not seen in that run are marked inactive
 
 ## Quick Start
 
@@ -71,11 +72,15 @@ npm start
 node scheduler.js
 ```
 
-The scheduler will:
-- Run the crawler immediately on startup (configurable)
-- Schedule next runs based on configured interval (default: 7 days)
+The scheduler is the default command of the Docker image. It will:
+- Start a **full re-crawl cycle** every `CRAWL_DAYS_INTERVAL` days (default: 7): all sources (also ones completed earlier) are crawled from their root, every collection is fetched and upserted again
+- Persist the cycle in the database, so a stopped or crashed container **continues** the running cycle on restart instead of starting over
+- Start the next cycle 7 days after the start of the previous one, but only once that one is finished
+- Finish a cycle that takes longer than 7 days anyway and report it as an error at the end
 - Respect time window restrictions if enabled
 - Automatically retry on errors
+
+Requires the tables from [`db/init/08_tables_crawl_cycle.sql`](../db/init/08_tables_crawl_cycle.sql) (created automatically on a fresh database, see [db/README.md](../db/README.md) for existing ones).
 
 ## Configuration
 
@@ -92,7 +97,8 @@ The crawler can be configured using environment variables, CLI arguments, or a c
 | Max APIs | `-a, --max-apis` | `MAX_APIS` | `5` | Maximum number of APIs to process (0 = unlimited) |
 | Timeout | `-t, --timeout` | `TIMEOUT_MS` | `30000` | Timeout per operation in milliseconds |
 | Max Depth | `-d, --max-depth` | `MAX_DEPTH` | `10` | Maximum recursion depth for nested catalogs (0 = unlimited) |
-| Fresh | `-f, --fresh` | `FRESH_CRAWL` | `false` | Clear crawl log and re-crawl all collections |
+| Fresh | `-f, --fresh` | `FRESH_CRAWL` | `false` | Abandon a running cycle and start a new full re-crawl cycle (implies `--full-recrawl`) |
+| Full Re-crawl | `--full-recrawl` | `FULL_RECRAWL` | `false` | Run (or continue) a full re-crawl cycle: all sources from their root again, every collection refreshed. Default for the scheduler |
 
 #### Parallel Crawling Configuration
 
@@ -116,7 +122,8 @@ The crawler can be configured using environment variables, CLI arguments, or a c
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `CRAWL_DAYS_INTERVAL` | `7` | Days between crawl runs |
-| `CRAWL_RUN_ON_STARTUP` | `true` | Run crawler immediately on startup |
+| `CRAWL_FULL_RECRAWL` | `true` | Scheduler runs resumable full re-crawl cycles. Set to `false` for plain resume/skip runs every `CRAWL_DAYS_INTERVAL` days |
+| `CRAWL_RUN_ON_STARTUP` | `true` | Start the first cycle immediately when no cycle exists yet (a running cycle is always continued on startup) |
 | `CRAWL_RETRY_ON_ERROR` | `true` | Retry if crawl fails but DB is ok |
 | `CRAWL_RETRY_DELAY_HOURS` | `2` | Hours to wait before retry on error |
 | `CRAWL_ENFORCE_TIME_WINDOW` | `false` | Enable time window restrictions |
@@ -194,8 +201,11 @@ node index.js -m apis -a 10 -t 60000
 # Crawl both with all custom settings
 node index.js -m both -c 50 -a 20 -t 45000 -d 5
 
-# Start fresh - clear crawl log and re-crawl everything
+# Start fresh - clear crawl queue and re-crawl everything
 node index.js --fresh
+
+# Full re-crawl of all sources (what the scheduler does on every run)
+node index.js --full-recrawl -c 0 -a 0
 
 # Combine fresh mode with other options
 node index.js -f -m apis -a 10
@@ -237,7 +247,8 @@ node index.js --mode catalogs --max-catalogs 15
 node scheduler.js
 
 # The scheduler will:
-# - Run crawler immediately on startup (if CRAWL_RUN_ON_STARTUP=true)
+# - Continue a running cycle immediately, or start the first one (CRAWL_RUN_ON_STARTUP=true)
+# - Run a full re-crawl cycle of all sources every CRAWL_DAYS_INTERVAL days (CRAWL_FULL_RECRAWL=true)
 # - Schedule next run based on CRAWL_DAYS_INTERVAL
 # - Wait for allowed time window (if CRAWL_ENFORCE_TIME_WINDOW=true)
 # - Automatically retry on errors (if CRAWL_RETRY_ON_ERROR=true)
@@ -273,8 +284,11 @@ CRAWL_ENFORCE_TIME_WINDOW=false
 # Build the image
 docker build -t stac-crawler .
 
-# Run single crawl with default configuration
+# Run the scheduler (default command: weekly full re-crawl cycles)
 docker run --rm stac-crawler
+
+# Run a single crawl instead
+docker run --rm stac-crawler node index.js
 
 # Run with environment variables
 docker run --rm \
@@ -285,17 +299,19 @@ docker run --rm \
   -e PGDATABASE=stac_db \
   -e CRAWL_MODE=apis \
   -e MAX_APIS=10 \
-  stac-crawler
+  stac-crawler node index.js
 
-# Run with CLI arguments
-docker run --rm stac-crawler --mode catalogs --max-catalogs 20
+# Single run with CLI arguments
+docker run --rm stac-crawler node index.js --mode catalogs --max-catalogs 20
 
-# Run scheduler in Docker (detached)
+# Run scheduler in Docker (detached, restarts continue the running cycle)
 docker run -d \
   --name stac-scheduler \
+  --restart unless-stopped \
+  --stop-timeout 60 \
   -e PGHOST=host.docker.internal \
   -e CRAWL_DAYS_INTERVAL=7 \
-  stac-crawler node scheduler.js
+  stac-crawler
 ```
 
 Or use npm scripts:
@@ -310,25 +326,20 @@ npm run docker:run
 Create a `.env` file or modify `docker-compose.yml` to set environment variables:
 
 ```bash
-# Start the crawler (single run)
+# Start the crawler (scheduler with weekly full re-crawl cycles)
 docker-compose up -d
 
 # View logs
 docker-compose logs -f
 
-# Stop the crawler
+# Stop the crawler (the running cycle is continued on the next start)
 docker-compose down
+
+# One-off single run instead of the scheduler
+docker-compose run --rm crawler node index.js
 ```
 
-For scheduled crawling with Docker Compose, modify `docker-compose.yml`:
-```yaml
-services:
-  crawler:
-    build: .
-    command: node scheduler.js  # Use scheduler instead of single run
-    env_file: .env
-    restart: unless-stopped  # Auto-restart on failure
-```
+The compose service uses `restart: unless-stopped` and `stop_grace_period: 60s`, so the current batch can be written to the database on stop. Even if the container is killed, progress is kept: collections already saved and sources already completed in the cycle are not crawled again.
 
 Or use npm scripts:
 
@@ -612,8 +623,8 @@ The crawler stores the following data in PostgreSQL:
 - **Summaries**: Statistical summaries of collection properties 
 
 **Crawl tracking** (for pause/resume):
-- **`crawllog_catalog`**: Stores the catalog/API URLs and slugs for future re-crawling
-- **`crawllog_collection`**: Records which collection URLs have been processed and when
+- **`crawllog_catalog`**: Stores the catalog/API URLs and slugs; `updated_at` marks when a source was last crawled
+- **`crawllog_collection`**: Queue of discovered collection URLs that are not yet saved (entries are removed once processed)
 
 **What is NOT stored**:
 - **Individual items**: The crawler only processes collections, not individual STAC items
@@ -625,14 +636,16 @@ The crawler stores the following data in PostgreSQL:
 **How Pausing Works**:
 1. **Graceful Shutdown**: Press `Ctrl+C` once to trigger graceful shutdown
 2. **Batch Completion**: The crawler finishes the current batch of requests before stopping
-3. **Progress Saved**: All processed collections are saved to `crawllog_collection` with their source URLs
+3. **Progress Saved**: Processed collections are in `collection`; discovered but unprocessed URLs stay in the `crawllog_collection` queue
 4. **Safe Exit**: Database connections are properly closed
 
-**How Resuming Works**:
-1. **URL Lookup**: When restarting, the crawler queries `crawllog_collection` for already-processed URLs
-2. **Skip Logic**: URLs in the crawl log are skipped during traversal
-3. **Continue from Interruption**: Only new/unprocessed collections are fetched
-4. **Idempotent**: Running the crawler multiple times is safe - duplicates are handled via `ON CONFLICT` clauses
+**How Resuming Works** (single run, `node index.js` without `--full-recrawl`):
+1. **Source Selection**: Only sources that were never completed or still have queued URLs are crawled
+2. **Queue**: Sources with queued URLs continue from the `crawllog_collection` queue
+3. **Skip Logic**: Collection URLs that already exist in `collection.source_url` are skipped
+4. **Idempotent**: Running the crawler multiple times is safe - duplicates are handled via upserts
+
+Resume mode does **not** pick up new or changed content of sources that were already completed — that is what the full re-crawl is for.
 
 **Force Stop**: Press `Ctrl+C` twice for immediate termination (may leave incomplete transactions)
 
@@ -640,19 +653,30 @@ The crawler stores the following data in PostgreSQL:
 
 The scheduler (`scheduler.js`) provides automated periodic crawling:
 
-1. **Interval-based**: Runs every `CRAWL_DAYS_INTERVAL` days (default: 7)
-2. **Time Window Enforcement**: Optional restriction to specific hours (e.g., night-time only)
-3. **Startup Behavior**: Configurable immediate run on startup (`CRAWL_RUN_ON_STARTUP`)
-4. **Error Recovery**: Automatic retry on crawl errors with configurable delay
-5. **Recrawl Strategy**: Full re-crawl of all catalogs/APIs - `ON CONFLICT` ensures updates rather than duplicates
+1. **Crawl cycles**: A cycle is one complete full re-crawl of all sources. Cycles are stored in `crawl_cycle`; sources completed within a cycle in `crawl_cycle_source`
+2. **Interval**: A new cycle is due `CRAWL_DAYS_INTERVAL` days (default: 7) after the **start** of the previous cycle, and only starts once the previous cycle is **finished**
+3. **Overrun**: If a cycle is not finished within `CRAWL_DAYS_INTERVAL` days, it is still crawled to the end. At the end an error is logged (`overran = true` in `crawl_cycle`) and the overdue next cycle starts right away
+4. **Resume after stop/crash**: On (re)start the scheduler reads the cycle state from the DB. A running cycle is continued immediately; sources already completed in it are skipped, and collections already refreshed in it are not fetched again. A stopped container therefore never restarts the crawl from scratch
+5. **Time Window Enforcement**: Optional restriction to specific hours. At the end of the window the crawl is paused and continued in the next window
+6. **Startup Behavior**: `CRAWL_RUN_ON_STARTUP` only matters when no cycle exists yet (`false` = wait one interval before the first cycle)
+7. **Error Recovery**: On crawl errors the cycle stays open and is continued after `CRAWL_RETRY_DELAY_HOURS`
+8. **Recrawl Strategy** (`CRAWL_FULL_RECRAWL=true`, default):
+   - at the start of a new cycle the `crawllog_collection` queue is cleared, so every source is seeded from its root URL
+   - **all** sources from `crawllog_catalog` are crawled, including ones completed in earlier cycles
+   - every collection is fetched again and upserted (metadata, extent, keywords, providers, assets, `full_json`, `updated_at`, `is_active = true`); a collection is only skipped if it was already refreshed in the *same* cycle
+   - new collections in existing sources and new sources on stacindex.org are picked up
+   - `MAX_CATALOGS` / `MAX_APIS` default to unlimited for the scheduler unless set explicitly
+9. **Cleanup**: When a cycle completes (with mode `both`), collections whose `updated_at` is older than the start of the cycle are set to `is_active = false`. Interrupted or unfinished cycles never deactivate anything
 
 **Scheduling Logic**:
 ```
-Startup → DB Check → Time Window Check → Run Crawler → Success?
-                                               ↓ Yes        ↓ No (crawl error)
-                                         Schedule Next   Wait RETRY_DELAY → Retry
-                                               ↓
-                                         Wait Until Next → Run Crawler
+Startup → DB Check → read crawl_cycle
+   ├─ running cycle            → continue it now
+   ├─ last cycle finished      → wait until start + CRAWL_DAYS_INTERVAL (now if overdue)
+   └─ no cycle yet             → start first cycle (CRAWL_RUN_ON_STARTUP)
+Run Crawler → cycle finished?      → (overran? log ERROR) → wait for next due date
+            → interrupted/stopped  → cycle stays open, continued on next start / next window
+            → crawl error          → wait CRAWL_RETRY_DELAY_HOURS → continue cycle
 ```
 
 ### Data Validation

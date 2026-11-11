@@ -226,19 +226,184 @@ async function getCrawledCollectionUrls(crawllogCatalogId) {
 }
 
 /**
+ * Id of the crawl cycle (full re-crawl) the current run belongs to.
+ * When set, a collection only counts as "already crawled" if it was written at or after the
+ * start of that cycle. When null (resume mode), any collection in the table counts as crawled.
+ * @type {number|null}
+ */
+let currentCycleId = null;
+
+/**
+ * Set (or clear) the crawl cycle used by isCollectionUrlCrawled
+ * @param {number|null} cycleId - crawl_cycle id, or null for resume mode
+ */
+function setCurrentCycle(cycleId) {
+  currentCycleId = cycleId || null;
+}
+
+/**
  * Check if a specific collection URL has already been crawled
+ * In resume mode: true if the URL exists in the collection table.
+ * In a full re-crawl (see setCurrentCycle): true only if it was refreshed during the current cycle.
+ * Timestamps are compared inside Postgres to avoid timezone conversions.
  * @param {string} sourceUrl - The source URL to check
- * @returns {Promise<boolean>} True if URL exists in collection table (already crawled)
+ * @returns {Promise<boolean>} True if the URL should be skipped
  */
 async function isCollectionUrlCrawled(sourceUrl) {
   if (!sourceUrl) return false;
   
-  const result = await pool.query(
-    'SELECT 1 FROM collection WHERE source_url = $1 LIMIT 1',
-    [sourceUrl]
-  );
+  const result = currentCycleId
+    ? await pool.query(
+        `SELECT 1 FROM collection
+         WHERE source_url = $1
+           AND updated_at >= (SELECT started_at FROM crawl_cycle WHERE id = $2)
+         LIMIT 1`,
+        [sourceUrl, currentCycleId]
+      )
+    : await pool.query(
+        'SELECT 1 FROM collection WHERE source_url = $1 LIMIT 1',
+        [sourceUrl]
+      );
   
   return result.rows.length > 0;
+}
+
+// ========================================
+// CRAWL CYCLES (full re-crawl, see db/init/08_tables_crawl_cycle.sql)
+// ========================================
+
+/**
+ * Map a crawl_cycle row to a JS object
+ * @param {Object} row
+ * @returns {Object|null}
+ */
+function mapCycle(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    status: row.status,
+    overran: row.overran,
+    // Milliseconds until started_at + intervalDays (negative if already overdue)
+    msUntilDue: row.ms_until_due !== undefined && row.ms_until_due !== null ? Number(row.ms_until_due) : undefined,
+    // Duration in milliseconds (finished cycles) or elapsed time so far (running cycles)
+    durationMs: row.duration_ms !== undefined && row.duration_ms !== null ? Number(row.duration_ms) : undefined
+  };
+}
+
+const CYCLE_COLUMNS = `
+  id, started_at, finished_at, status, overran,
+  EXTRACT(EPOCH FROM (started_at + make_interval(days => $1) - now())) * 1000 AS ms_until_due,
+  EXTRACT(EPOCH FROM (COALESCE(finished_at, now()) - started_at)) * 1000 AS duration_ms
+`;
+
+/**
+ * Get the most recent crawl cycle (running or finished)
+ * @param {number} intervalDays - Cycle interval, used to compute msUntilDue
+ * @returns {Promise<Object|null>}
+ */
+async function getLatestCycle(intervalDays = 7) {
+  const result = await pool.query(
+    `SELECT ${CYCLE_COLUMNS} FROM crawl_cycle ORDER BY id DESC LIMIT 1`,
+    [intervalDays]
+  );
+  return mapCycle(result.rows[0]);
+}
+
+/**
+ * Get the running (open) crawl cycle, if any
+ * @param {number} intervalDays - Cycle interval, used to compute msUntilDue
+ * @returns {Promise<Object|null>}
+ */
+async function getRunningCycle(intervalDays = 7) {
+  const result = await pool.query(
+    `SELECT ${CYCLE_COLUMNS} FROM crawl_cycle WHERE status = 'running' ORDER BY id DESC LIMIT 1`,
+    [intervalDays]
+  );
+  return mapCycle(result.rows[0]);
+}
+
+/**
+ * Start a new crawl cycle. Any running cycle is marked as abandoned.
+ * @param {number} intervalDays - Cycle interval, used to compute msUntilDue
+ * @returns {Promise<Object>} The new cycle
+ */
+async function startCycle(intervalDays = 7) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE crawl_cycle SET status = 'abandoned', finished_at = now() WHERE status = 'running'`
+    );
+    const inserted = await client.query('INSERT INTO crawl_cycle DEFAULT VALUES RETURNING id');
+    const result = await client.query(
+      `SELECT ${CYCLE_COLUMNS} FROM crawl_cycle WHERE id = $2`,
+      [intervalDays, inserted.rows[0].id]
+    );
+    await client.query('COMMIT');
+    return mapCycle(result.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Mark sources as completely crawled within a cycle
+ * @param {number} cycleId
+ * @param {Array<number>} crawllogCatalogIds
+ * @returns {Promise<number>} Number of newly marked sources
+ */
+async function markSourcesCompleted(cycleId, crawllogCatalogIds) {
+  const ids = (crawllogCatalogIds || []).filter(Boolean);
+  if (!cycleId || ids.length === 0) return 0;
+
+  const result = await pool.query(
+    `INSERT INTO crawl_cycle_source (cycle_id, crawllog_catalog_id)
+     SELECT $1, unnest($2::int[])
+     ON CONFLICT DO NOTHING`,
+    [cycleId, ids]
+  );
+  return result.rowCount;
+}
+
+/**
+ * Get the crawllog_catalog ids that were already completed in a cycle
+ * @param {number} cycleId
+ * @returns {Promise<Set<number>>}
+ */
+async function getCompletedSourceIds(cycleId) {
+  if (!cycleId) return new Set();
+  const result = await pool.query(
+    'SELECT crawllog_catalog_id FROM crawl_cycle_source WHERE cycle_id = $1',
+    [cycleId]
+  );
+  return new Set(result.rows.map(row => row.crawllog_catalog_id));
+}
+
+/**
+ * Finish a crawl cycle. Sets overran = true if it took longer than intervalDays.
+ * @param {number} cycleId
+ * @param {number} intervalDays
+ * @returns {Promise<Object>} The finished cycle
+ */
+async function completeCycle(cycleId, intervalDays = 7) {
+  await pool.query(
+    `UPDATE crawl_cycle
+     SET status = 'completed',
+         finished_at = now(),
+         overran = now() > started_at + make_interval(days => $2)
+     WHERE id = $1`,
+    [cycleId, intervalDays]
+  );
+  const result = await pool.query(
+    `SELECT ${CYCLE_COLUMNS} FROM crawl_cycle WHERE id = $2`,
+    [intervalDays, cycleId]
+  );
+  return mapCycle(result.rows[0]);
 }
 
 /**
@@ -867,23 +1032,35 @@ async function insertAssets(client, collectionId, assets) {
 
 
 /**
- * Mark collections as inactive if they haven't been updated in the last 7 days
- * Should be called after a crawl completes to deactivate stale collections
+ * Mark collections as inactive if they were not refreshed recently.
+ * Without arguments, collections not updated in the last 7 days are deactivated.
+ * With `cycleId`, collections not updated since the start of that crawl cycle are deactivated —
+ * used after a complete full re-crawl to deactivate everything that was not confirmed in it.
  * @async
  * @function deactivateStaleCollections
+ * @param {Object} [options]
+ * @param {number} [options.cycleId] - crawl_cycle id whose start is the cutoff
  * @returns {Promise<number>} Number of collections marked as inactive
  */
-async function deactivateStaleCollections() {
-  const result = await pool.query(`
-    UPDATE collection
-    SET is_active = false
-    WHERE updated_at < NOW() - INTERVAL '7 days'
-      AND is_active = true
-  `);
+async function deactivateStaleCollections({ cycleId } = {}) {
+  const result = cycleId
+    ? await pool.query(`
+        UPDATE collection
+        SET is_active = false
+        WHERE updated_at < (SELECT started_at FROM crawl_cycle WHERE id = $1)
+          AND is_active = true
+      `, [cycleId])
+    : await pool.query(`
+        UPDATE collection
+        SET is_active = false
+        WHERE updated_at < NOW() - INTERVAL '7 days'
+          AND is_active = true
+      `);
   
   const count = result.rowCount;
   if (count > 0) {
-    console.log(`Marked ${count} collection(s) as inactive (not updated in last 7 days)`);
+    const reason = cycleId ? 'not seen during this full re-crawl' : 'not updated in last 7 days';
+    console.log(`Marked ${count} collection(s) as inactive (${reason})`);
   }
   
   return count;
@@ -911,6 +1088,13 @@ export default {
   getSlugByCrawllogCatalogId,
   getCrawledCollectionUrls,
   isCollectionUrlCrawled,
+  setCurrentCycle,
+  getLatestCycle,
+  getRunningCycle,
+  startCycle,
+  markSourcesCompleted,
+  getCompletedSourceIds,
+  completeCycle,
   enqueueCollectionUrl,
   getPendingCollectionSeeds,
   claimCollectionQueueBatch,
